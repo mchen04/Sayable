@@ -29,3 +29,13 @@ Pre-flight:
 | 15 | BLOCK | 1/1/0 | cycle 15 fix commit | +75 | PASS | Allowed verified Stripe completion webhooks to unlock Premium after a prior browser-cancelled return, exposed checkout simulation capability from the billing layer to hide mock-only controls in real Stripe mode, renamed checkout analytics/rate labels to neutral names with mode context, and added signed-webhook smoke coverage. `npm run verify` passed with the known Turbopack tracing warning. |
 | 16 | BLOCK | 0/2/0 | cycle 16 fix commit | -124 | PASS | Made anonymous create caps enforce the server fingerprint regardless of rotated creator nonce, stored creator nonce as a separate optional identity signal, added smoke coverage for same-IP rotated-nonce cap bypass attempts, and trimmed static source-fragment checks down to migration-only contracts. `npm run verify` passed with the known Turbopack tracing warning. |
 | 17 | APPROVE | 0/0/0 | none | 0 | PASS | First clean cycle. Fresh audit found no standard-aggressiveness findings; auditor also ran `npm run typecheck`, `npm run lint`, and `npm run guard:no-llm` without browser automation. |
+| 18 | APPROVE | 0/0/0 | none | 0 | PASS | Second clean cycle. Fresh audit found no standard-aggressiveness findings, ran `npm run guard:no-llm`, and used no Chrome/browser automation. Converged with 2 consecutive APPROVE cycles. |
+
+Summary:
+
+- Exit reason: converged after 2 consecutive APPROVE cycles.
+- Total cycles: 18.
+- Total commits after baseline: 17 before final log closeout.
+- Net branch diff before final log closeout: 50 files changed, +3114/-1510.
+- Notable file-size recovery: `apps/web/src/lib/store.ts` reduced from 1,598 lines at baseline to under 900 lines through extracted store backend, billing, types, and check-policy modules.
+- Verification: `npm run verify` passed on the final fix cycle with the known Turbopack NFT tracing warning; clean-cycle auditors also ran read-only checks without Chrome, Chromium, Chrome for Testing, or browser automation.
