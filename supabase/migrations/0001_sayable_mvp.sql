@@ -251,7 +251,25 @@ begin
     created_at,
     updated_at
   )
-  select *
+  select
+    row.id,
+    row.owner_user_id,
+    row.title,
+    row.activity_type,
+    row.plan,
+    row.status,
+    row.draft,
+    row.theme_id,
+    row.custom_theme,
+    row.guest_token_ciphertext,
+    row.guest_token_hash,
+    row.host_token_hash,
+    row.result_token_hash,
+    row.created_by_fingerprint_hash,
+    row.expires_at,
+    row.final_shared_at,
+    row.created_at,
+    row.updated_at
   from jsonb_to_recordset(coalesce(p_checks, '[]'::jsonb)) as row(
     id uuid,
     owner_user_id uuid,
@@ -286,7 +304,18 @@ begin
     updated_at,
     deleted_at
   )
-  select *
+  select
+    row.id,
+    row.check_id,
+    row.response_token_hash,
+    row.status,
+    row.tier_id,
+    row.constraint_ids,
+    row.private_note,
+    row.client_nonce_hash,
+    row.created_at,
+    row.updated_at,
+    row.deleted_at
   from jsonb_to_recordset(coalesce(p_responses, '[]'::jsonb)) as row(
     id uuid,
     check_id uuid,
@@ -313,7 +342,17 @@ begin
     stripe_payment_intent_id,
     created_at
   )
-  select *
+  select
+    row.id,
+    row.check_id,
+    row.owner_user_id,
+    row.product_type,
+    row.amount_cents,
+    row.mode,
+    row.status,
+    row.stripe_checkout_session_id,
+    row.stripe_payment_intent_id,
+    row.created_at
   from jsonb_to_recordset(coalesce(p_purchases, '[]'::jsonb)) as row(
     id uuid,
     check_id uuid,
@@ -335,7 +374,13 @@ begin
     created_at,
     deleted_at
   )
-  select *
+  select
+    row.id,
+    row.check_id,
+    row.result_token_hash,
+    row.snapshot,
+    row.created_at,
+    row.deleted_at
   from jsonb_to_recordset(coalesce(p_result_snapshots, '[]'::jsonb)) as row(
     id uuid,
     check_id uuid,
@@ -352,7 +397,12 @@ begin
     context,
     created_at
   )
-  select *
+  select
+    row.id,
+    row.check_id,
+    row.event_name,
+    row.context,
+    row.created_at
   from jsonb_to_recordset(coalesce(p_analytics_events, '[]'::jsonb)) as row(
     id uuid,
     check_id uuid,
@@ -369,7 +419,13 @@ begin
     detail,
     created_at
   )
-  select *
+  select
+    row.id,
+    row.check_id,
+    row.actor_type,
+    row.action,
+    row.detail,
+    row.created_at
   from jsonb_to_recordset(coalesce(p_audit_logs, '[]'::jsonb)) as row(
     id uuid,
     check_id uuid,
@@ -386,7 +442,12 @@ begin
     fingerprint_hash,
     created_at
   )
-  select *
+  select
+    row.id,
+    row.route,
+    row.reason,
+    row.fingerprint_hash,
+    row.created_at
   from jsonb_to_recordset(coalesce(p_abuse_events, '[]'::jsonb)) as row(
     id uuid,
     route text,

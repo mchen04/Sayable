@@ -37,9 +37,10 @@ import {
   type StoreErrorTelemetry
 } from "./store-types";
 import {
-  findCheckByToken,
+  requireCheckByToken,
   requireOwnerCheck,
   requireUsableCheck,
+  tokenValidationFailure,
   visibleStatus
 } from "./store-check-policy";
 
@@ -58,14 +59,8 @@ export type {
 export {
   completePremiumCheckoutBySession,
   getPremiumCheckoutReturn,
-  preflightPremiumCheckout,
-  preflightPremiumCheckoutById,
   preflightPremiumCheckoutForTarget,
-  startPremiumCheckout,
-  startPremiumCheckoutById,
   startPremiumCheckoutForTarget,
-  upgradeCheck,
-  upgradeCheckById,
   upgradeCheckForTarget
 } from "./store-billing";
 export type { PremiumCheckoutOutcome, PremiumCheckoutTarget } from "./store-billing";
@@ -93,7 +88,6 @@ function assertOwnerActiveFreeLimit(store: StoreFile, ownerUserId: string, exclu
   }
 }
 
-type TokenClass = NonNullable<StoreErrorTelemetry["tokenClass"]>;
 type HostAuthMode = "demo_feature_flag" | "supabase_oauth";
 
 interface HostCommandContext {
@@ -239,34 +233,6 @@ export async function createCheck(
   });
 }
 
-function tokenValidationFailure(
-  tokenClass: TokenClass,
-  token: string,
-  status: number,
-  message: string
-): never {
-  logAbuse(`token:${tokenClass}`, "invalid_token", hashToken(token));
-  throw new StoreError(status, message, {
-    kind: "token_validation_failed",
-    tokenClass,
-    reason: "invalid_token"
-  });
-}
-
-function requireCheckByToken(
-  store: StoreFile,
-  token: string,
-  field: "guestTokenHash" | "hostTokenHash" | "resultTokenHash",
-  tokenClass: TokenClass,
-  message: string
-) {
-  const check = findCheckByToken(store, token, field);
-  if (!check) {
-    tokenValidationFailure(tokenClass, token, 404, message);
-  }
-  return check;
-}
-
 function hostCheckPayload(store: StoreFile, check: StoredCheck) {
   if (check.status === "deleted") {
     throw new StoreError(410, "This Comfort Check has been deleted.");
@@ -287,7 +253,9 @@ function hostCheckPayload(store: StoreFile, check: StoredCheck) {
 
 export async function getPublicCheck(guestToken: string) {
   const store = await readStore();
-  const check = requireCheckByToken(store, guestToken, "guestTokenHash", "guest", "Comfort Check not found.");
+  const check = requireCheckByToken(store, guestToken, "guestTokenHash", "guest", "Comfort Check not found.", {
+    persistAbuse: true
+  });
   if (check.status === "deleted") {
     throw new StoreError(410, "This Comfort Check has been deleted.");
   }
@@ -299,13 +267,17 @@ export async function getPublicCheck(guestToken: string) {
 
 export async function getHostCheck(hostToken: string) {
   const store = await readStore();
-  const check = requireCheckByToken(store, hostToken, "hostTokenHash", "host", "Host link not found.");
+  const check = requireCheckByToken(store, hostToken, "hostTokenHash", "host", "Host link not found.", {
+    persistAbuse: true
+  });
   return hostCheckPayload(store, check);
 }
 
 export async function getHostCheckForApi(hostToken: string) {
   const store = await readStore();
-  const check = requireCheckByToken(store, hostToken, "hostTokenHash", "host", "Host link not found.");
+  const check = requireCheckByToken(store, hostToken, "hostTokenHash", "host", "Host link not found.", {
+    persistAbuse: true
+  });
   if (check.status === "deleted") {
     throw new StoreError(410, "This Comfort Check has been deleted.");
   }
@@ -329,7 +301,7 @@ export async function getSnapshot(resultToken: string) {
     (candidate) => candidate.resultTokenHash === tokenHash && !candidate.deletedAt
   );
   if (!snapshot) {
-    tokenValidationFailure("result", resultToken, 404, "Result snapshot not found.");
+    tokenValidationFailure(store, "result", resultToken, 404, "Result snapshot not found.", { persistAbuse: true });
   }
   const check = store.checks.find((candidate) => candidate.id === snapshot.checkId);
   if (!check || check.status === "deleted") {
@@ -429,7 +401,7 @@ export async function getResponse(responseToken: string): Promise<StoredResponse
   const store = await readStore();
   const response = store.responses.find((candidate) => candidate.responseTokenHash === hashToken(responseToken));
   if (!response || response.deletedAt) {
-    tokenValidationFailure("response", responseToken, 404, "Response token not found.");
+    tokenValidationFailure(store, "response", responseToken, 404, "Response token not found.", { persistAbuse: true });
   }
   return response;
 }
@@ -438,7 +410,7 @@ export function updateResponse(responseToken: string, input: ResponseInput): Pro
   return mutateStore((store) => {
     const response = store.responses.find((candidate) => candidate.responseTokenHash === hashToken(responseToken));
     if (!response || response.deletedAt) {
-      tokenValidationFailure("response", responseToken, 404, "Response token not found.");
+      tokenValidationFailure(store, "response", responseToken, 404, "Response token not found.");
     }
     const check = store.checks.find((candidate) => candidate.id === response.checkId);
     if (!check) {
@@ -471,7 +443,7 @@ export function deleteResponse(responseToken: string): Promise<StoredResponse> {
   return mutateStore((store) => {
     const response = store.responses.find((candidate) => candidate.responseTokenHash === hashToken(responseToken));
     if (!response || response.deletedAt) {
-      tokenValidationFailure("response", responseToken, 404, "Response token not found or already deleted.");
+      tokenValidationFailure(store, "response", responseToken, 404, "Response token not found or already deleted.");
     }
     const deletedAt = now();
     response.deletedAt = deletedAt;

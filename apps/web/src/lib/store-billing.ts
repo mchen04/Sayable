@@ -3,7 +3,7 @@ import "server-only";
 import crypto from "node:crypto";
 import { defaultThemeForActivity, getPlanLimits } from "@sayable/core";
 import { mutateStore, now, readStore } from "./store-backend";
-import { findCheckByToken, requireCheckById, requireOwnerCheck, requireUsableCheck } from "./store-check-policy";
+import { requireCheckById, requireCheckByToken, requireOwnerCheck, requireUsableCheck } from "./store-check-policy";
 import { type AuditLog, type PurchaseRecord, type StoreFile, type StoredCheck, StoreError } from "./store-types";
 
 export type PremiumCheckoutOutcome = "success" | "failed" | "cancelled";
@@ -22,22 +22,14 @@ function addDays(date: Date, days: number): string {
   return next.toISOString();
 }
 
-function requireCheckByHostToken(store: StoreFile, hostToken: string): StoredCheck {
-  const check = findCheckByToken(store, hostToken, "hostTokenHash");
-  if (!check) {
-    throw new StoreError(404, "Host link not found.", {
-      kind: "token_validation_failed",
-      tokenClass: "host",
-      reason: "invalid_token"
-    });
-  }
-  return check;
-}
-
-function resolvePremiumCheck(store: StoreFile, target: PremiumCheckoutTarget): StoredCheck {
+function resolvePremiumCheck(
+  store: StoreFile,
+  target: PremiumCheckoutTarget,
+  options: { persistAbuse?: boolean } = {}
+): StoredCheck {
   const check =
     target.type === "hostToken"
-      ? requireCheckByHostToken(store, target.hostToken)
+      ? requireCheckByToken(store, target.hostToken, "hostTokenHash", "host", "Host link not found.", options)
       : requireOwnerCheck(store, target.checkId, target.ownerUserId);
   assertPremiumUpgradeAllowed(check, target.ownerUserId);
   return check;
@@ -166,15 +158,7 @@ function recordStartedCheckout(
 
 export async function preflightPremiumCheckoutForTarget(target: PremiumCheckoutTarget): Promise<StoredCheck> {
   const store = await readStore();
-  return resolvePremiumCheck(store, target);
-}
-
-export async function preflightPremiumCheckout(hostToken: string, ownerUserId: string): Promise<StoredCheck> {
-  return preflightPremiumCheckoutForTarget({ type: "hostToken", hostToken, ownerUserId });
-}
-
-export async function preflightPremiumCheckoutById(checkId: string, ownerUserId: string): Promise<StoredCheck> {
-  return preflightPremiumCheckoutForTarget({ type: "checkId", checkId, ownerUserId });
+  return resolvePremiumCheck(store, target, { persistAbuse: true });
 }
 
 export function upgradeCheckForTarget(
@@ -190,28 +174,6 @@ export function upgradeCheckForTarget(
   });
 }
 
-export function upgradeCheck(
-  hostToken: string,
-  outcome: PremiumCheckoutOutcome = "success",
-  ownerUserId = "",
-  mode: CheckoutMode = "mock",
-  stripeIds: CheckoutStripeIds = {},
-  actor: CheckoutActor = "host"
-): Promise<PurchaseRecord> {
-  return upgradeCheckForTarget({ type: "hostToken", hostToken, ownerUserId }, outcome, mode, stripeIds, actor);
-}
-
-export function upgradeCheckById(
-  checkId: string,
-  ownerUserId: string,
-  outcome: PremiumCheckoutOutcome = "success",
-  mode: CheckoutMode = "mock",
-  stripeIds: CheckoutStripeIds = {},
-  actor: CheckoutActor = "host"
-): Promise<PurchaseRecord> {
-  return upgradeCheckForTarget({ type: "checkId", checkId, ownerUserId }, outcome, mode, stripeIds, actor);
-}
-
 export function startPremiumCheckoutForTarget(
   target: PremiumCheckoutTarget,
   checkoutSessionId: string,
@@ -221,24 +183,6 @@ export function startPremiumCheckoutForTarget(
     const check = resolvePremiumCheck(store, target);
     return recordStartedCheckout(store, check, checkoutSessionId, actor);
   });
-}
-
-export function startPremiumCheckout(
-  hostToken: string,
-  ownerUserId: string,
-  checkoutSessionId: string,
-  actor: CheckoutActor = "host"
-): Promise<PurchaseRecord> {
-  return startPremiumCheckoutForTarget({ type: "hostToken", hostToken, ownerUserId }, checkoutSessionId, actor);
-}
-
-export function startPremiumCheckoutById(
-  checkId: string,
-  ownerUserId: string,
-  checkoutSessionId: string,
-  actor: CheckoutActor = "host"
-): Promise<PurchaseRecord> {
-  return startPremiumCheckoutForTarget({ type: "checkId", checkId, ownerUserId }, checkoutSessionId, actor);
 }
 
 export function completePremiumCheckoutBySession(

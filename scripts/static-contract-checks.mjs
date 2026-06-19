@@ -30,6 +30,10 @@ export function runStaticContractChecks() {
   );
   assertFunctionGrant(migration, "public.try_acquire_sayable_store_lock(text, text, integer)");
   assertFunctionGrant(migration, "public.release_sayable_store_lock(text, text)");
+  staticAssert(
+    !/select \*\s+from jsonb_to_recordset/.test(migration),
+    "Supabase runtime replacement RPC must map json recordsets with named columns"
+  );
 
   const storeBackend = sourceFile("apps/web/src/lib/store-backend.ts");
   staticAssert(
