@@ -1,0 +1,27 @@
+{
+  "name": "sayable",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @sayable/web",
+    "dev:web": "npm run dev -w @sayable/web",
+    "dev:mobile": "npm run dev -w @sayable/mobile",
+    "typecheck": "npm run typecheck -ws --if-present",
+    "lint": "npm run lint -ws --if-present",
+    "test": "npm run test -ws --if-present",
+    "test:mutations": "node scripts/core-mutation-smoke.mjs",
+    "guard:no-llm": "node scripts/no-llm-guard.mjs",
+    "smoke:web": "node scripts/smoke-web.mjs",
+    "build": "npm run build -ws --if-present",
+    "verify": "npm run typecheck && npm run lint && npm run guard:no-llm && npm run test && npm run test:mutations && npm run smoke:web && npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}

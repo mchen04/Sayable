@@ -1,0 +1,17 @@
+.DS_Store
+node_modules/
+.next/
+dist/
+build/
+coverage/
+.expo/
+.turbo/
+.sayable-data/
+*.log
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+apps/mobile/.expo/
+apps/mobile/web-build/
+apps/mobile/dist/

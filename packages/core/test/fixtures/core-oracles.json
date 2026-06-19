@@ -1,0 +1,151 @@
+[
+  {
+    "name": "dinner drinks normal price easy yes",
+    "input": {
+      "title": "Rooftop drinks",
+      "activityType": "dinner_drinks",
+      "currentIdea": "$48 per person",
+      "vibe": "low_key"
+    },
+    "expected": {
+      "title": "Rooftop drinks",
+      "priceState": "normal",
+      "constraintLabels": ["Keep it low-key", "Keep the bill comfortable"],
+      "bestFit": "Easy yes for the group"
+    },
+    "responses": [
+      { "status": "in", "tierId": "easy_yes", "constraintIds": [] },
+      { "status": "in", "tierId": "easy_yes", "constraintIds": [] },
+      { "status": "in", "tierId": "easy_yes", "constraintIds": [] },
+      { "status": "in", "tierId": "easy_yes", "constraintIds": [] }
+    ]
+  },
+  {
+    "name": "high price birthday needs budget warning",
+    "input": {
+      "title": "Birthday dinner downtown",
+      "activityType": "birthday",
+      "currentIdea": "$120 per person",
+      "vibe": "celebratory"
+    },
+    "expected": {
+      "title": "Birthday dinner downtown",
+      "priceState": "high",
+      "constraintLabels": ["Price around $120/person needs a real yes", "Keep it celebratory"],
+      "bestFit": "Works with a few tweaks",
+      "warningIncludes": "cheaper"
+    },
+    "responses": [
+      { "status": "in", "tierId": "easy_yes", "constraintIds": ["price-high"] },
+      { "status": "maybe", "tierId": "works_with_tweaks", "constraintIds": ["price-high"] },
+      { "status": "maybe", "tierId": "works_with_tweaks", "constraintIds": ["guest-budget"] },
+      { "status": "out", "tierId": "not_comfortable", "constraintIds": ["price-high"] }
+    ]
+  },
+  {
+    "name": "casual hangout unclear price gets rethought",
+    "input": {
+      "title": "Park hang",
+      "activityType": "casual_hangout",
+      "currentIdea": "depends on snacks",
+      "vibe": "spontaneous"
+    },
+    "expected": {
+      "title": "Park hang",
+      "priceState": "ambiguous",
+      "constraintLabels": ["Need clearer price details", "Easy to opt in without pressure"],
+      "bestFit": "Rethink the plan"
+    },
+    "responses": [
+      { "status": "out", "tierId": "not_comfortable", "constraintIds": ["price-clarity"] },
+      { "status": "out", "tierId": "not_comfortable", "constraintIds": ["cheap-or-free"] },
+      { "status": "out", "tierId": "not_comfortable", "constraintIds": ["close-by"] },
+      { "status": "in", "tierId": "easy_yes", "constraintIds": [] }
+    ]
+  },
+  {
+    "name": "tickets event high price needs tweaks",
+    "input": {
+      "title": "Concert night",
+      "activityType": "tickets_event",
+      "currentIdea": "$88 per person",
+      "vibe": "polished"
+    },
+    "expected": {
+      "title": "Concert night",
+      "priceState": "high",
+      "constraintLabels": ["Price around $88/person needs a real yes", "Ticket price feels okay"],
+      "bestFit": "Works with a few tweaks",
+      "warningIncludes": "cheaper"
+    },
+    "responses": [
+      { "status": "in", "tierId": "easy_yes", "constraintIds": [] },
+      { "status": "maybe", "tierId": "works_with_tweaks", "constraintIds": ["ticket-price"] },
+      { "status": "maybe", "tierId": "works_with_tweaks", "constraintIds": ["price-high"] },
+      { "status": "in", "tierId": "easy_yes", "constraintIds": [] }
+    ]
+  },
+  {
+    "name": "small group suppresses trip outlier",
+    "input": {
+      "title": "Cabin weekend",
+      "activityType": "group_trip",
+      "currentIdea": "$1,200 total",
+      "vibe": "adventurous"
+    },
+    "expected": {
+      "title": "Cabin weekend",
+      "priceState": "extreme",
+      "constraintLabels": ["Price around $1200 needs a real yes", "Keep it adventurous"],
+      "bestFit": "Gathering comfort signal",
+      "suppressed": true
+    },
+    "responses": [
+      { "status": "in", "tierId": "easy_yes", "constraintIds": ["price-high"] },
+      { "status": "out", "tierId": "not_comfortable", "constraintIds": ["total-cost"] },
+      { "status": "maybe", "tierId": "works_with_tweaks", "constraintIds": ["dates"] }
+    ]
+  },
+  {
+    "name": "custom malformed price stays split comfort",
+    "input": {
+      "title": "Mystery plan",
+      "activityType": "custom",
+      "currentIdea": "???",
+      "vibe": "cozy"
+    },
+    "expected": {
+      "title": "Mystery plan",
+      "priceState": "malformed",
+      "constraintLabels": ["Need clearer price details", "Budget feels comfortable"],
+      "bestFit": "Split comfort"
+    },
+    "responses": [
+      { "status": "in", "tierId": "easy_yes", "constraintIds": [] },
+      { "status": "out", "tierId": "not_comfortable", "constraintIds": ["price-clarity"] },
+      { "status": "maybe", "tierId": "works_with_tweaks", "constraintIds": ["timing-check"] },
+      { "status": "out", "tierId": "not_comfortable", "constraintIds": ["budget-check"] }
+    ]
+  },
+  {
+    "name": "all yes home chill is easy yes",
+    "input": {
+      "title": "Movie night",
+      "activityType": "home_chill",
+      "currentIdea": "free",
+      "vibe": "cozy"
+    },
+    "expected": {
+      "title": "Movie night",
+      "priceState": "free",
+      "constraintLabels": ["Free plan still feels worth the time", "Keep it cozy"],
+      "bestFit": "Easy yes for the group"
+    },
+    "responses": [
+      { "status": "in", "tierId": "easy_yes", "constraintIds": [] },
+      { "status": "in", "tierId": "easy_yes", "constraintIds": [] },
+      { "status": "in", "tierId": "easy_yes", "constraintIds": [] },
+      { "status": "in", "tierId": "easy_yes", "constraintIds": [] }
+    ]
+  }
+]

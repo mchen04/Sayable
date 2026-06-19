@@ -1,0 +1,29 @@
+{
+  "name": "@sayable/web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --max-warnings=0"
+  },
+  "dependencies": {
+    "@sayable/core": "*",
+    "@supabase/supabase-js": "^2.50.0",
+    "lucide-react": "^0.475.0",
+    "next": "^16.2.9",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "9.39.4",
+    "eslint-config-next": "^16.2.9",
+    "typescript": "^5.8.3"
+  }
+}

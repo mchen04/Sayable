@@ -1,0 +1,17 @@
+{
+  "name": "Sayable",
+  "short_name": "Sayable",
+  "description": "Private Comfort Checks for group-chat plans.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fbf8f2",
+  "theme_color": "#2f6f5e",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "64x64",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
