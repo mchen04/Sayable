@@ -7,10 +7,6 @@ import { type CheckStatus, type StoreErrorTelemetry, type StoreFile, type Stored
 type CheckTokenHashField = "guestTokenHash" | "hostTokenHash" | "resultTokenHash";
 type TokenClass = NonNullable<StoreErrorTelemetry["tokenClass"]>;
 
-interface TokenValidationOptions {
-  persistAbuse?: boolean;
-}
-
 export function isExpired(check: StoredCheck): boolean {
   return new Date(check.expiresAt).getTime() < Date.now();
 }
@@ -57,13 +53,10 @@ export function tokenValidationFailure(
   tokenClass: TokenClass,
   token: string,
   status: number,
-  message: string,
-  options: TokenValidationOptions = {}
+  message: string
 ): never {
   recordTokenAbuse(store, tokenClass, token);
-  if (options.persistAbuse) {
-    persistTokenAbuse(tokenClass, token);
-  }
+  persistTokenAbuse(tokenClass, token);
   throw new StoreError(status, message, {
     kind: "token_validation_failed",
     tokenClass,
@@ -76,12 +69,11 @@ export function requireCheckByToken(
   token: string,
   field: CheckTokenHashField,
   tokenClass: TokenClass,
-  notFoundMessage: string,
-  options: TokenValidationOptions = {}
+  notFoundMessage: string
 ): StoredCheck {
   const check = findCheckByToken(store, token, field);
   if (!check) {
-    tokenValidationFailure(store, tokenClass, token, 404, notFoundMessage, options);
+    tokenValidationFailure(store, tokenClass, token, 404, notFoundMessage);
   }
   return check;
 }

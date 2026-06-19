@@ -102,6 +102,7 @@ async function createStripeCheckoutSession(
     method: "POST",
     headers: {
       Authorization: `Bearer ${secretKey}`,
+      "Idempotency-Key": `sayable-premium-${checkId}`,
       "Content-Type": "application/x-www-form-urlencoded"
     },
     body

@@ -253,9 +253,7 @@ function hostCheckPayload(store: StoreFile, check: StoredCheck) {
 
 export async function getPublicCheck(guestToken: string) {
   const store = await readStore();
-  const check = requireCheckByToken(store, guestToken, "guestTokenHash", "guest", "Comfort Check not found.", {
-    persistAbuse: true
-  });
+  const check = requireCheckByToken(store, guestToken, "guestTokenHash", "guest", "Comfort Check not found.");
   if (check.status === "deleted") {
     throw new StoreError(410, "This Comfort Check has been deleted.");
   }
@@ -267,17 +265,13 @@ export async function getPublicCheck(guestToken: string) {
 
 export async function getHostCheck(hostToken: string) {
   const store = await readStore();
-  const check = requireCheckByToken(store, hostToken, "hostTokenHash", "host", "Host link not found.", {
-    persistAbuse: true
-  });
+  const check = requireCheckByToken(store, hostToken, "hostTokenHash", "host", "Host link not found.");
   return hostCheckPayload(store, check);
 }
 
 export async function getHostCheckForApi(hostToken: string) {
   const store = await readStore();
-  const check = requireCheckByToken(store, hostToken, "hostTokenHash", "host", "Host link not found.", {
-    persistAbuse: true
-  });
+  const check = requireCheckByToken(store, hostToken, "hostTokenHash", "host", "Host link not found.");
   if (check.status === "deleted") {
     throw new StoreError(410, "This Comfort Check has been deleted.");
   }
@@ -301,7 +295,7 @@ export async function getSnapshot(resultToken: string) {
     (candidate) => candidate.resultTokenHash === tokenHash && !candidate.deletedAt
   );
   if (!snapshot) {
-    tokenValidationFailure(store, "result", resultToken, 404, "Result snapshot not found.", { persistAbuse: true });
+    tokenValidationFailure(store, "result", resultToken, 404, "Result snapshot not found.");
   }
   const check = store.checks.find((candidate) => candidate.id === snapshot.checkId);
   if (!check || check.status === "deleted") {
@@ -401,7 +395,7 @@ export async function getResponse(responseToken: string): Promise<StoredResponse
   const store = await readStore();
   const response = store.responses.find((candidate) => candidate.responseTokenHash === hashToken(responseToken));
   if (!response || response.deletedAt) {
-    tokenValidationFailure(store, "response", responseToken, 404, "Response token not found.", { persistAbuse: true });
+    tokenValidationFailure(store, "response", responseToken, 404, "Response token not found.");
   }
   return response;
 }

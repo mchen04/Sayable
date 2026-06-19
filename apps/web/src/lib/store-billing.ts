@@ -11,7 +11,7 @@ export type PremiumCheckoutTarget =
   | { type: "hostToken"; hostToken: string; ownerUserId: string }
   | { type: "checkId"; checkId: string; ownerUserId: string };
 
-type CheckoutActor = Extract<AuditLog["actor"], "demo_user" | "host">;
+type CheckoutActor = Extract<AuditLog["actor"], "demo_user" | "host" | "system">;
 type CheckoutMode = PurchaseRecord["mode"];
 type CheckoutStripeIds = { checkoutSessionId?: string; paymentIntentId?: string };
 type TerminalCheckoutStatus = Exclude<PurchaseRecord["status"], "started">;
@@ -24,12 +24,11 @@ function addDays(date: Date, days: number): string {
 
 function resolvePremiumCheck(
   store: StoreFile,
-  target: PremiumCheckoutTarget,
-  options: { persistAbuse?: boolean } = {}
+  target: PremiumCheckoutTarget
 ): StoredCheck {
   const check =
     target.type === "hostToken"
-      ? requireCheckByToken(store, target.hostToken, "hostTokenHash", "host", "Host link not found.", options)
+      ? requireCheckByToken(store, target.hostToken, "hostTokenHash", "host", "Host link not found.")
       : requireOwnerCheck(store, target.checkId, target.ownerUserId);
   assertPremiumUpgradeAllowed(check, target.ownerUserId);
   return check;
@@ -95,6 +94,12 @@ function purchaseBase(check: StoredCheck, createdAt: string): Omit<PurchaseRecor
   };
 }
 
+function startedCheckoutForCheck(store: StoreFile, checkId: string): PurchaseRecord | undefined {
+  return store.purchases.find(
+    (purchase) => purchase.checkId === checkId && purchase.mode === "test" && purchase.status === "started"
+  );
+}
+
 function recordUpgradeOutcome(
   store: StoreFile,
   check: StoredCheck,
@@ -135,6 +140,13 @@ function recordStartedCheckout(
   checkoutSessionId: string,
   actor: CheckoutActor
 ): PurchaseRecord {
+  const existing = startedCheckoutForCheck(store, check.id);
+  if (existing) {
+    if (existing.stripeCheckoutSessionId === checkoutSessionId) {
+      return existing;
+    }
+    throw new StoreError(409, "Premium checkout is already in progress for this Comfort Check.");
+  }
   const startedAt = now();
   const purchase = createStartedPurchase(check, checkoutSessionId, startedAt);
   store.purchases.push(purchase);
@@ -158,7 +170,7 @@ function recordStartedCheckout(
 
 export async function preflightPremiumCheckoutForTarget(target: PremiumCheckoutTarget): Promise<StoredCheck> {
   const store = await readStore();
-  return resolvePremiumCheck(store, target, { persistAbuse: true });
+  return resolvePremiumCheck(store, target);
 }
 
 export function upgradeCheckForTarget(
@@ -204,6 +216,16 @@ export function completePremiumCheckoutBySession(
       if (check.ownerUserId !== metadata.ownerUserId) {
         throw new StoreError(403, "This Premium Check upgrade belongs to a different host account.");
       }
+      if (check.plan === "premium") {
+        return recordUpgradeOutcome(
+          store,
+          check,
+          "cancelled",
+          "test",
+          { checkoutSessionId, ...(paymentIntentId ? { paymentIntentId } : {}) },
+          "system"
+        );
+      }
       purchase = createStartedPurchase(check, checkoutSessionId, now());
       store.purchases.push(purchase);
     }
@@ -211,6 +233,20 @@ export function completePremiumCheckoutBySession(
       throw new StoreError(404, "Comfort Check not found.");
     }
     if (purchase.status === "completed") {
+      return purchase;
+    }
+    if (check.plan === "premium") {
+      if (purchase.status === "started") {
+        const cancelledAt = now();
+        purchase.status = "cancelled";
+        if (paymentIntentId) {
+          purchase.stripePaymentIntentId = paymentIntentId;
+        }
+        recordPremiumCheckoutEvent(store, check, "cancelled", "test", "system", cancelledAt);
+      }
+      return purchase;
+    }
+    if (purchase.status !== "started") {
       return purchase;
     }
     requireUsableCheck(check);

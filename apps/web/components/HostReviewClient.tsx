@@ -458,14 +458,14 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
                   >
                     Delete question
                   </button>
-	                ) : null}
-	              </div>
-	            ))}
-	            <button className="btn btn-secondary" type="button" onClick={saveDraftItems} disabled={isSaving}>
-	              <Save size={18} aria-hidden />
-	              Save questions and tiers
-	            </button>
-	          </details>
+                ) : null}
+              </div>
+            ))}
+            <button className="btn btn-secondary" type="button" onClick={saveDraftItems} disabled={isSaving}>
+              <Save size={18} aria-hidden />
+              Save questions and tiers
+            </button>
+          </details>
 
           <details className="tool-panel stack">
             <summary>Fine-tune comfort tiers</summary>

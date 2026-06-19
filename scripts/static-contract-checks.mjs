@@ -43,11 +43,23 @@ export function runStaticContractChecks() {
 
   const billing = sourceFile("apps/web/src/lib/billing.ts");
   staticAssert(!billing.includes("/checks/${hostToken}/review?premium="), "Stripe URLs must not contain raw host tokens");
+  staticAssert(billing.includes('"Idempotency-Key": `sayable-premium-${checkId}`'), "Stripe checkout sessions must use a per-check idempotency key");
   staticAssert(
     billing.includes("/billing/return?session_id={CHECKOUT_SESSION_ID}") &&
       billing.includes("\"metadata[check_id]\"") &&
       billing.includes("\"metadata[owner_user_id]\""),
     "Stripe test checkout must use a tokenless return route plus metadata"
+  );
+
+  const storeBilling = sourceFile("apps/web/src/lib/store-billing.ts");
+  staticAssert(storeBilling.includes("startedCheckoutForCheck"), "Premium checkout starts must check for active sessions");
+  staticAssert(
+    storeBilling.includes("Premium checkout is already in progress for this Comfort Check."),
+    "Premium checkout starts must reject duplicate active sessions"
+  );
+  staticAssert(
+    storeBilling.includes('purchase.status = "cancelled"'),
+    "Duplicate Stripe completion webhooks must cancel started duplicate sessions"
   );
 
   const billingReturn = sourceFile("apps/web/components/BillingReturnClient.tsx");

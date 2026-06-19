@@ -76,6 +76,24 @@ function assert(condition, message) {
   }
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForAbuseEvent(route, reason) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const admin = await request("/api/admin", {
+      headers: { "x-sayable-admin-token": "smoke-admin-token" }
+    });
+    assert(admin.response.ok, "admin with token failed while polling abuse events");
+    if (admin.body.abuseEvents.some((event) => event.route === route && event.reason === reason)) {
+      return admin;
+    }
+    await sleep(50);
+  }
+  throw new Error(`abuse event missing: ${route} ${reason}`);
+}
+
 function forgeDemoToken(ownerUserId) {
   const payload = Buffer.from(
     JSON.stringify({ sub: ownerUserId, exp: Math.floor(Date.now() / 1000) + 3600 }),
@@ -457,6 +475,13 @@ async function main() {
     body: JSON.stringify({ outcome: "success" })
   });
   assert(wrongOwnerUpgrade.response.status === 403, "wrong owner upgrade should be rejected");
+
+  const invalidHostPatch = await request("/api/checks/host/not-a-real-host-token", {
+    method: "PATCH",
+    body: JSON.stringify({ resetDraft: true })
+  });
+  assert(invalidHostPatch.response.status === 404, "invalid mutating host token should be rejected");
+  await waitForAbuseEvent("token:host", "invalid_token");
 
   const upgrade = await request(`/api/checks/host/${hostToken}/upgrade`, {
     method: "POST",
