@@ -824,6 +824,24 @@ async function main() {
     `signed owner claim cap should reject a fourth active free check: ${fourthClaim.response.status}`
   );
 
+  const anonymousCapStatuses = [];
+  for (let index = 0; index < 4; index += 1) {
+    const createdForAnonymousIdentity = await request("/api/checks", {
+      method: "POST",
+      headers: { "x-forwarded-for": "198.51.100.155" },
+      body: JSON.stringify({
+        title: `Anonymous cap ${index + 1}`,
+        activityType: "custom",
+        creatorNonce: `rotated-anonymous-nonce-${index}-0123456789`
+      })
+    });
+    anonymousCapStatuses.push(createdForAnonymousIdentity.response.status);
+  }
+  assert(
+    JSON.stringify(anonymousCapStatuses) === JSON.stringify([201, 201, 201, 429]),
+    `anonymous fingerprint cap failed with rotated creator nonces: ${anonymousCapStatuses.join(",")}`
+  );
+
   const limitCheck = await createCheck("custom", 50);
   const created = [];
   for (let index = 0; index < 30; index += 1) {

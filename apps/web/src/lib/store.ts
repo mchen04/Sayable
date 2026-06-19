@@ -96,6 +96,11 @@ interface HostCommandContext {
   mode: HostAuthMode;
 }
 
+interface AnonymousCreateIdentity {
+  fingerprintHash: string;
+  creatorNonceHash?: string;
+}
+
 type HostCheckPatch = {
   constraints?: ComfortConstraint[] | undefined;
   questions?: ComfortQuestion[] | undefined;
@@ -168,7 +173,7 @@ export function logAbuse(route: string, reason: string, fingerprintHash: string)
 
 export async function createCheck(
   input: CreateCheckInput,
-  createdByFingerprintHash?: string,
+  anonymousIdentity?: AnonymousCreateIdentity,
   hostContext?: HostCommandContext
 ): Promise<{
   check: StoredCheck;
@@ -180,14 +185,15 @@ export async function createCheck(
     if (hostContext) {
       assertOwnerActiveFreeLimit(store, hostContext.ownerUserId);
     }
-    if (createdByFingerprintHash) {
-      const activeForFingerprint = store.checks.filter(
+    if (anonymousIdentity) {
+      const activeForAnonymousIdentity = store.checks.filter(
         (check) =>
-          check.createdByFingerprintHash === createdByFingerprintHash &&
           visibleStatus(check) === "active" &&
-          check.plan === "free"
+          check.plan === "free" &&
+          (check.createdByFingerprintHash === anonymousIdentity.fingerprintHash ||
+            (anonymousIdentity.creatorNonceHash ? check.creatorNonceHash === anonymousIdentity.creatorNonceHash : false))
       ).length;
-      if (activeForFingerprint >= freeActiveLimit) {
+      if (activeForAnonymousIdentity >= freeActiveLimit) {
         throw new StoreError(429, "Free hosts can keep 3 active Comfort Checks at a time.");
       }
     }
@@ -211,7 +217,12 @@ export async function createCheck(
       hostTokenHash: hashToken(hostToken),
       resultTokenHash: hashToken(randomToken()),
       ...(hostContext ? { ownerUserId: hostContext.ownerUserId } : {}),
-      ...(createdByFingerprintHash ? { createdByFingerprintHash } : {})
+      ...(anonymousIdentity
+        ? {
+            createdByFingerprintHash: anonymousIdentity.fingerprintHash,
+            ...(anonymousIdentity.creatorNonceHash ? { creatorNonceHash: anonymousIdentity.creatorNonceHash } : {})
+          }
+        : {})
     };
     store.checks.push(check);
     store.analyticsEvents.push({

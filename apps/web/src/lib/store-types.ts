@@ -29,6 +29,7 @@ export interface StoredCheck {
   hostTokenHash: string;
   resultTokenHash: string;
   createdByFingerprintHash?: string;
+  creatorNonceHash?: string;
   ownerUserId?: string;
   finalSharedAt?: string;
 }

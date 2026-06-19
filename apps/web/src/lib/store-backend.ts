@@ -228,6 +228,7 @@ interface ComfortCheckRow {
   host_token_hash: string;
   result_token_hash: string;
   created_by_fingerprint_hash: string | null;
+  creator_nonce_hash: string | null;
   expires_at: string;
   final_shared_at: string | null;
   created_at: string;
@@ -312,6 +313,7 @@ function mapCheckRow(row: ComfortCheckRow): StoredCheck {
     hostTokenHash: row.host_token_hash,
     resultTokenHash: row.result_token_hash,
     ...(row.created_by_fingerprint_hash ? { createdByFingerprintHash: row.created_by_fingerprint_hash } : {}),
+    ...(row.creator_nonce_hash ? { creatorNonceHash: row.creator_nonce_hash } : {}),
     ...(row.owner_user_id ? { ownerUserId: row.owner_user_id } : {}),
     ...(row.final_shared_at ? { finalSharedAt: row.final_shared_at } : {})
   };
@@ -421,6 +423,7 @@ function toSupabasePayload(store: StoreFile) {
       host_token_hash: check.hostTokenHash,
       result_token_hash: check.resultTokenHash,
       created_by_fingerprint_hash: check.createdByFingerprintHash || null,
+      creator_nonce_hash: check.creatorNonceHash || null,
       expires_at: check.expiresAt,
       final_shared_at: check.finalSharedAt || null,
       created_at: check.createdAt,

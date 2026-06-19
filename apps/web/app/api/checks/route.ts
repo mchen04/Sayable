@@ -11,10 +11,15 @@ export async function POST(request: NextRequest) {
     const session = await optionalHostSession(request);
     const ownerUserId = session?.sub;
     logAnalytics("create_flow_started", { activityType: input.activityType });
-    const createdByHash = ownerUserId ? undefined : input.creatorNonce ? hashToken(input.creatorNonce) : fingerprintHash(request);
+    const anonymousIdentity = ownerUserId
+      ? undefined
+      : {
+          fingerprintHash: fingerprintHash(request),
+          ...(input.creatorNonce ? { creatorNonceHash: hashToken(input.creatorNonce) } : {})
+        };
     const { check, guestToken, hostToken } = await createCheck(
       input,
-      createdByHash,
+      anonymousIdentity,
       session ? { ownerUserId: session.sub, actor: session.actor, mode: session.mode } : undefined
     );
     logAnalytics("auto_draft_generated", { activityType: input.activityType }, check.id);
