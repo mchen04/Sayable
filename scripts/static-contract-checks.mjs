@@ -65,13 +65,34 @@ export function runStaticContractChecks() {
   const billingReturn = sourceFile("apps/web/components/BillingReturnClient.tsx");
   staticAssert(!billingReturn.includes("localStorage"), "Checkout return must not recover raw host tokens from browser storage");
   staticAssert(
-    billingReturn.includes("/dashboard/checks/${payload.checkId}/review?premium=${premiumStatus}"),
-    "Checkout return must redirect through owner-scoped dashboard review URLs"
+    billingReturn.includes('payload.status === "started"') && billingReturn.includes("window.setTimeout"),
+    "Checkout return must wait on server-side started status before redirecting"
+  );
+  staticAssert(
+    billingReturn.includes("/dashboard/checks/${payload.checkId}/review?premium=${payload.status}"),
+    "Checkout return must redirect with the server-side terminal status"
   );
 
   const createForm = sourceFile("apps/web/components/CreateCheckForm.tsx");
+  staticAssert(!createForm.includes("sayable_recent_host_tokens"), "Create flow must not persist stale host-token recovery storage");
+  staticAssert(!createForm.includes("sayable_host_token_by_check_id"), "Create flow must not persist host-token dashboard maps");
+
   staticAssert(!createForm.includes("getDemoSession"), "Create recovery must use canonical host auth, not demo-only auth");
   staticAssert(createForm.includes("await existingAuthHeaders()"), "Create must attach an existing host auth session");
+
+  const hostReview = sourceFile("apps/web/components/HostReviewClient.tsx");
+  staticAssert(!hostReview.includes("sayable_host_token_by_check_id"), "Host review must not persist stale dashboard host-token maps");
+  staticAssert(!hostReview.includes("endpoints.hostToken"), "Host review must use explicit claim endpoints, not raw token props");
+
+  const hostEndpoints = sourceFile("apps/web/components/host-endpoints.ts");
+  staticAssert(
+    !hostEndpoints.includes("rememberHostToken") && !hostEndpoints.includes("hostToken?:"),
+    "Endpoint config must not carry stale host-token recovery fields"
+  );
+  staticAssert(
+    hostEndpoints.includes("claimPath") && hostReview.includes("endpoints.claimPath"),
+    "Raw host-token review pages must pass claim URLs explicitly"
+  );
 
   const coreTypes = sourceFile("packages/core/src/types.ts");
   staticAssert(!/interface GuestResponse[\s\S]*responseTokenHash/.test(coreTypes), "Core GuestResponse must not carry token hashes");

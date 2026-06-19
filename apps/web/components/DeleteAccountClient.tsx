@@ -23,7 +23,6 @@ export default function DeleteAccountClient() {
       }
       window.localStorage.removeItem("sayable_demo_session");
       window.localStorage.removeItem("sayable_demo_user_id");
-      window.localStorage.removeItem("sayable_host_token_by_check_id");
       setMessage(`Account deletion completed. ${payload.deletedChecks || 0} saved Comfort Checks were deleted.`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Account deletion could not be completed.");

@@ -25,17 +25,6 @@ export default function CreateCheckForm({ compact = false }: { compact?: boolean
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  function rememberHostToken(hostToken: string, checkId?: string) {
-    const key = "sayable_recent_host_tokens";
-    const existing = JSON.parse(window.localStorage.getItem(key) || "[]") as string[];
-    window.localStorage.setItem(key, JSON.stringify(Array.from(new Set([hostToken, ...existing])).slice(0, 8)));
-    if (checkId) {
-      const mapKey = "sayable_host_token_by_check_id";
-      const map = JSON.parse(window.localStorage.getItem(mapKey) || "{}") as Record<string, string>;
-      window.localStorage.setItem(mapKey, JSON.stringify({ ...map, [checkId]: hostToken }));
-    }
-  }
-
   function getCreatorNonce(): string {
     const key = "sayable_creator_nonce";
     const existing = window.localStorage.getItem(key);
@@ -66,11 +55,10 @@ export default function CreateCheckForm({ compact = false }: { compact?: boolean
           ...(!headers.Authorization ? { creatorNonce: getCreatorNonce() } : {})
         })
       });
-      const data = (await response.json()) as { hostToken?: string; check?: { id: string }; error?: string };
+      const data = (await response.json()) as { hostToken?: string; error?: string };
       if (!response.ok || !data.hostToken) {
         throw new Error(data.error || "Could not create this Comfort Check.");
       }
-      rememberHostToken(data.hostToken, data.check?.id);
       router.push(`/checks/${data.hostToken}/review`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not create this Comfort Check.");

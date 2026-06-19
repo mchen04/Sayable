@@ -1,10 +1,9 @@
 export interface HostReviewEndpoints {
-  hostToken?: string;
   apiPath: string;
   resultsPath: string;
   upgradePath: string;
+  claimPath?: string;
   requiresAuth: boolean;
-  rememberHostToken: boolean;
 }
 
 export interface HostResultsEndpoints {
@@ -16,12 +15,11 @@ export interface HostResultsEndpoints {
 
 export function hostTokenReviewEndpoints(hostToken: string): HostReviewEndpoints {
   return {
-    hostToken,
     apiPath: `/api/checks/host/${hostToken}`,
     resultsPath: `/h/${hostToken}`,
     upgradePath: `/api/checks/host/${hostToken}/upgrade`,
-    requiresAuth: false,
-    rememberHostToken: true
+    claimPath: `/api/checks/host/${hostToken}/claim`,
+    requiresAuth: false
   };
 }
 
@@ -30,8 +28,7 @@ export function ownerReviewEndpoints(checkId: string): HostReviewEndpoints {
     apiPath: `/api/dashboard/checks/${checkId}`,
     resultsPath: `/dashboard/checks/${checkId}/results`,
     upgradePath: `/api/dashboard/checks/${checkId}/upgrade`,
-    requiresAuth: true,
-    rememberHostToken: false
+    requiresAuth: true
   };
 }
 

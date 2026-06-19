@@ -56,12 +56,6 @@ function labelKey(label: string) {
   return label.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-function rememberDashboardHostToken(checkId: string, hostToken: string) {
-  const mapKey = "sayable_host_token_by_check_id";
-  const map = JSON.parse(window.localStorage.getItem(mapKey) || "{}") as Record<string, string>;
-  window.localStorage.setItem(mapKey, JSON.stringify({ ...map, [checkId]: hostToken }));
-}
-
 interface HostReviewClientProps {
   endpoints: HostReviewEndpoints;
 }
@@ -101,9 +95,6 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
         return;
       }
       setData(payload);
-      if (endpoints.rememberHostToken && endpoints.hostToken) {
-        rememberDashboardHostToken(payload.check.id, endpoints.hostToken);
-      }
       setConstraints(payload.check.draft.constraints);
       setQuestions(payload.check.draft.questions);
       setTiers(payload.check.draft.tiers);
@@ -118,7 +109,7 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
     } catch {
       setError("Network connection dropped while opening this host link. Try again.");
     }
-  }, [endpoints.apiPath, endpoints.hostToken, endpoints.rememberHostToken, requestHeaders]);
+  }, [endpoints.apiPath, requestHeaders]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -285,14 +276,14 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
   }
 
   async function claim() {
-    if (!endpoints.hostToken) {
-      setError("This saved dashboard check is already tied to your host session.");
+    if (!endpoints.claimPath) {
+      setError("This dashboard check is already saved to your account.");
       return false;
     }
     setError("");
     try {
       const headers = await authHeaders();
-      const response = await fetch(`/api/checks/host/${endpoints.hostToken}/claim`, {
+      const response = await fetch(endpoints.claimPath, {
         method: "POST",
         headers
       });
@@ -311,7 +302,7 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
   }
 
   async function upgrade(outcome: "success" | "failed" | "cancelled" = "success") {
-    const signedIn = data?.check.ownerUserId || (await claim());
+    const signedIn = endpoints.requiresAuth || Boolean(data?.check.ownerUserId) || (await claim());
     if (!signedIn) {
       return;
     }

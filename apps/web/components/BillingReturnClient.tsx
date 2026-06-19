@@ -12,13 +12,15 @@ interface CheckoutReturn {
   plan: "free" | "premium";
 }
 
-export default function BillingReturnClient({ sessionId, status }: { sessionId: string; status: string }) {
+export default function BillingReturnClient({ sessionId }: { sessionId: string }) {
   const router = useRouter();
   const [message, setMessage] = useState("Confirming Premium checkout...");
   const [error, setError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
+    let retryTimer: number | undefined;
+    let attempts = 0;
     async function resolveReturn() {
       if (!sessionId) {
         setError("Checkout session is missing.");
@@ -37,8 +39,22 @@ export default function BillingReturnClient({ sessionId, status }: { sessionId: 
         if (cancelled) {
           return;
         }
-        const premiumStatus = status === "cancelled" ? "cancelled" : payload.status;
-        router.replace(`/dashboard/checks/${payload.checkId}/review?premium=${premiumStatus}`);
+        if (payload.status === "started") {
+          attempts += 1;
+          setMessage(
+            attempts >= 8
+              ? "Premium checkout is still pending. Open the dashboard to continue."
+              : "Waiting for Stripe to confirm Premium checkout..."
+          );
+          if (attempts >= 8) {
+            return;
+          }
+          retryTimer = window.setTimeout(() => {
+            void resolveReturn();
+          }, 1500);
+          return;
+        }
+        router.replace(`/dashboard/checks/${payload.checkId}/review?premium=${payload.status}`);
       } catch (caught) {
         if (!cancelled) {
           setError(caught instanceof Error ? caught.message : "Checkout could not be confirmed.");
@@ -49,8 +65,11 @@ export default function BillingReturnClient({ sessionId, status }: { sessionId: 
     void resolveReturn();
     return () => {
       cancelled = true;
+      if (retryTimer) {
+        window.clearTimeout(retryTimer);
+      }
     };
-  }, [router, sessionId, status]);
+  }, [router, sessionId]);
 
   return (
     <main className="page-shell narrow">
