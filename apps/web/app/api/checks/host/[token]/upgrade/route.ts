@@ -1,6 +1,7 @@
 import { type NextRequest } from "next/server";
-import { requireDemoSession } from "@/src/lib/demo-auth";
-import { upgradeCheck, logAnalytics } from "@/src/lib/store";
+import { createPremiumCheckout } from "@/src/lib/billing";
+import { requireHostSession } from "@/src/lib/host-auth";
+import { getHostCheckForApi, logAnalytics } from "@/src/lib/store";
 import { upgradeSchema } from "@/src/lib/schemas";
 import { enforceRateLimit, handleApiError, json, parseJson } from "@/src/lib/http";
 
@@ -10,11 +11,12 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
     enforceRateLimit(request, "premium_mock_upgrade", { limit: 10, windowMs: 60_000 });
     const input = await parseJson(request, upgradeSchema);
-    const session = requireDemoSession(request);
+    const session = await requireHostSession(request);
     logAnalytics("premium_mock_checkout_started", {});
     const { token } = await params;
-    const purchase = await upgradeCheck(token, input.outcome || "success", session.sub);
-    return json({ purchase });
+    const hostData = await getHostCheckForApi(token);
+    const result = await createPremiumCheckout(token, session.sub, input.outcome || "success", hostData.check.id, hostData.check.title);
+    return json(result);
   } catch (error) {
     return handleApiError(error, request);
   }

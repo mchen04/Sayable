@@ -249,8 +249,8 @@ export function createComfortDraft(input: DraftInput, plan: PlanTier = "free"): 
     ...(safeVibe ? { vibe: safeVibe } : {}),
     currentIdea: idea,
     price,
-    questions: DEFAULT_QUESTIONS,
-    tiers: BASE_TIERS,
+    questions: DEFAULT_QUESTIONS.map((question) => ({ ...question })),
+    tiers: BASE_TIERS.map((tier) => ({ ...tier })),
     constraints,
     privacyCopy:
       "Your response is private. The host sees grouped comfort patterns and constraints, not named budget answers or private notes.",

@@ -1,5 +1,5 @@
 import { type NextRequest } from "next/server";
-import { requireDemoSession } from "@/src/lib/demo-auth";
+import { requireHostSession } from "@/src/lib/host-auth";
 import { listChecksForOwner } from "@/src/lib/store";
 import { enforceRateLimit, handleApiError, json } from "@/src/lib/http";
 
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
     enforceRateLimit(request, "dashboard", { limit: 60, windowMs: 60_000 });
-    const session = requireDemoSession(request);
+    const session = await requireHostSession(request);
     const checks = (await listChecksForOwner(session.sub)).map((check) => ({
       id: check.id,
       title: check.title,

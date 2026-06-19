@@ -279,7 +279,7 @@ export default function HostReviewClient({ hostToken }: { hostToken: string }) {
         return false;
       }
       setData((current) => (current ? { ...current, check: payload.check! } : current));
-      setMessage("Saved to your demo Google dashboard.");
+      setMessage("Saved to your host dashboard.");
       return true;
     } catch {
       setError("Network connection dropped while saving. Try again.");
@@ -299,9 +299,13 @@ export default function HostReviewClient({ hostToken }: { hostToken: string }) {
         headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ outcome })
       });
-      const payload = (await response.json()) as { error?: string };
+      const payload = (await response.json()) as { checkoutUrl?: string; error?: string };
       if (!response.ok) {
         setError(payload.error || "Mock checkout did not complete.");
+        return;
+      }
+      if (payload.checkoutUrl) {
+        window.location.assign(payload.checkoutUrl);
         return;
       }
       setMessage(outcome === "success" ? "Premium Check unlocked." : `Mock checkout ${outcome}.`);

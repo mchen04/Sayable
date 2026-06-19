@@ -8,7 +8,7 @@
 - Response edit/delete requires the response token.
 - Host results require the host token.
 - Public snapshots require a result token created by the final-share action.
-- Local Google-demo save/dashboard/premium actions require `SAYABLE_DEMO_AUTH_ENABLED=true` plus a signed demo session token. Production should leave demo auth disabled and use Supabase Auth session verification.
+- Local Google-demo save/dashboard/premium actions require `SAYABLE_DEMO_AUTH_ENABLED=true` plus a signed demo session token. Production should leave demo auth disabled and uses Supabase Auth bearer/session verification for dashboard, claim, upgrade, and account deletion routes.
 - `SAYABLE_DEMO_AUTH_SECRET` should be set when local demo auth is enabled. `SAYABLE_TOKEN_ENCRYPTION_KEY` is required for Supabase mode; local file mode creates an ignored stable key next to the file store if one is not provided.
 
 ## Privacy model

@@ -1,10 +1,9 @@
 import "server-only";
 
 import crypto from "node:crypto";
-import { type NextRequest } from "next/server";
-import { StoreError } from "./store";
+import { StoreError } from "./store-types";
 
-interface DemoSessionPayload {
+export interface DemoSessionPayload {
   sub: string;
   exp: number;
 }
@@ -75,13 +74,4 @@ export function verifyDemoToken(token: string): DemoSessionPayload {
     throw new StoreError(401, "Sign in with Google before continuing.");
   }
   return payload;
-}
-
-export function requireDemoSession(request: NextRequest): DemoSessionPayload {
-  const authorization = request.headers.get("authorization") || "";
-  const token = authorization.startsWith("Bearer ") ? authorization.slice("Bearer ".length).trim() : "";
-  if (!token) {
-    throw new StoreError(401, "Sign in with Google before continuing.");
-  }
-  return verifyDemoToken(token);
 }

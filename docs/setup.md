@@ -58,7 +58,7 @@ NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED=true
 ```
 
 Until provider credentials are configured, the app shows the post-value "Continue with Google" path as a local demo claim and documents the missing production setup.
-The local demo session is signed server-side and only works when `SAYABLE_DEMO_AUTH_ENABLED=true`. Leave that flag unset in production; production owner identity must come from Supabase Auth session verification.
+The local demo session is signed server-side and only works when `SAYABLE_DEMO_AUTH_ENABLED=true`. Leave that flag unset in production; production owner identity comes from Supabase Auth bearer/session verification.
 
 ## Stripe
 
@@ -75,3 +75,4 @@ Future test mode:
 3. Create Checkout Sessions for `premium_check_upgrade`.
 4. Use Stripe CLI: `stripe listen --forward-to localhost:3000/api/billing/webhook`.
 5. Use test card `4242 4242 4242 4242`, future expiry, any CVC, valid ZIP.
+6. Premium unlocks only after a verified `checkout.session.completed` webhook; client-side outcome simulation is accepted only in `STRIPE_MODE=mock`.

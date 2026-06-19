@@ -7,7 +7,6 @@ import { getTheme, type ComfortDraft, type PlanTier } from "@sayable/core";
 import { Clipboard, MessageCircle, RefreshCw, Share2, ShieldCheck } from "lucide-react";
 import { copyText, postAnalytics } from "./client-utils";
 
-const PRIVACY_THRESHOLD = 4;
 let realtimeClient: SupabaseClient | null | undefined;
 
 interface HostResultData {
@@ -23,9 +22,10 @@ interface HostResultData {
   guestUrl: string;
   responseCount: number;
   deletedResponseCount: number;
-  result: {
-    responseCount: number;
-    isPrivacySuppressed: boolean;
+    result: {
+      responseCount: number;
+      privacyThreshold: number;
+      isPrivacySuppressed: boolean;
     bestFit: { label: string; detail: string; tone: string };
     comfortRange: { label: string; detail: string };
     currentIdeaWarning?: string;
@@ -234,7 +234,7 @@ export default function HostResultsClient({ hostToken }: { hostToken: string }) 
               <p className="muted">
                 {data.deletedResponseCount ? `${data.deletedResponseCount} deleted response ignored. ` : ""}
                 {data.result.isPrivacySuppressed
-                  ? `Detailed aggregate hidden until ${PRIVACY_THRESHOLD} responses.`
+                  ? `Detailed aggregate hidden until ${data.result.privacyThreshold} responses.`
                   : "Aggregate is privacy-safe."}
               </p>
             </div>

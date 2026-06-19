@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { authHeaders, getDemoSession } from "./client-utils";
+import { authHeaders, getHostSession } from "./client-utils";
 
 interface DashboardCheck {
   id: string;
@@ -26,7 +26,7 @@ export default function DashboardClient() {
   const [ownerUserId, setOwnerUserId] = useState("");
 
   useEffect(() => {
-    getDemoSession()
+    getHostSession()
       .then(async (session) => {
         setOwnerUserId(session.ownerUserId);
         const headers = await authHeaders();
@@ -51,7 +51,7 @@ export default function DashboardClient() {
         <span className="pill">Host dashboard</span>
         <h1 className="compact-title">Saved Comfort Checks</h1>
         <p>
-          Saved checks stay tied to this host session so you can reopen results, manage active checks, and upgrade when a
+          Saved checks stay tied to your host session so you can reopen results, manage active checks, and upgrade when a
           plan needs more room. Session <code>{maskedOwnerId(ownerUserId)}</code>.
         </p>
       </div>

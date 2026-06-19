@@ -1,782 +1,55 @@
 import "server-only";
 
 import crypto from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import {
-  type ActivityType,
+  type ComfortConstraint,
+  type ComfortDraft,
+  type ComfortQuestion,
+  type ComfortTier,
   calculateResultSummary,
   canUseTheme,
   createComfortDraft,
   defaultThemeForActivity,
   getPlanLimits,
-  THEMES,
-  type ComfortConstraint,
-  type ComfortDraft,
-  type ComfortQuestion,
-  type ComfortTier,
-  type GuestResponse,
-  type PlanTier,
-  type ResponseStatus,
-  type Vibe
+  THEMES
 } from "@sayable/core";
+import {
+  decryptToken,
+  encryptToken,
+  hashToken,
+  mutateStore,
+  now,
+  publicBaseUrl,
+  randomToken,
+  readStore,
+  resetStoreForTests
+} from "./store-backend";
+import {
+  type AuditLog,
+  type CheckStatus,
+  type CreateCheckInput,
+  type HostVisibleCheck,
+  type PurchaseRecord,
+  type ResponseInput,
+  type StoreFile,
+  type StoredCheck,
+  type StoredResponse,
+  StoreError,
+  type StoreErrorTelemetry
+} from "./store-types";
 
-export type CheckStatus = "active" | "closed" | "deleted" | "expired";
-
-export interface StoredCheck {
-  id: string;
-  title: string;
-  activityType: ActivityType;
-  plan: PlanTier;
-  status: CheckStatus;
-  draft: ComfortDraft;
-  themeId: string;
-  customTheme?: {
-    accent: string;
-    icon: string;
-  };
-  createdAt: string;
-  updatedAt: string;
-  expiresAt: string;
-  guestTokenCiphertext: string;
-  guestTokenHash: string;
-  hostTokenHash: string;
-  resultTokenHash: string;
-  createdByFingerprintHash?: string;
-  ownerUserId?: string;
-  finalSharedAt?: string;
-}
-
-export type HostVisibleCheck = Pick<
+export { hashToken, publicBaseUrl, randomToken, StoreError };
+export type {
+  AuditLog,
+  CheckStatus,
+  CreateCheckInput,
+  HostVisibleCheck,
+  PurchaseRecord,
+  ResponseInput,
+  StoreErrorTelemetry,
   StoredCheck,
-  | "id"
-  | "title"
-  | "activityType"
-  | "plan"
-  | "status"
-  | "draft"
-  | "themeId"
-  | "createdAt"
-  | "updatedAt"
-  | "expiresAt"
-  | "ownerUserId"
-  | "finalSharedAt"
-> & {
-  customTheme?: StoredCheck["customTheme"];
+  StoredResponse
 };
-
-export interface StoredResponse extends GuestResponse {
-  id: string;
-  checkId: string;
-  responseTokenHash: string;
-  clientNonceHash?: string;
-}
-
-export interface PurchaseRecord {
-  id: string;
-  checkId: string;
-  productType: "premium_check_upgrade";
-  amountCents: 499;
-  mode: "mock" | "test";
-  status: "completed" | "failed" | "cancelled";
-  createdAt: string;
-}
-
-export interface AnalyticsEvent {
-  id: string;
-  name: string;
-  checkId?: string;
-  createdAt: string;
-  context: Record<string, string | number | boolean | null>;
-}
-
-export interface AuditLog {
-  id: string;
-  action: string;
-  checkId?: string;
-  createdAt: string;
-  actor: "anonymous" | "host" | "guest" | "demo_user" | "admin";
-  detail: string;
-}
-
-export interface AbuseEvent {
-  id: string;
-  route: string;
-  reason: string;
-  fingerprintHash: string;
-  createdAt: string;
-}
-
-export interface StoredResultSnapshot {
-  id: string;
-  checkId: string;
-  resultTokenHash: string;
-  snapshot: {
-    headline: string;
-    detail: string;
-    safeStats: string[];
-  };
-  createdAt: string;
-  deletedAt?: string;
-}
-
-interface StoreFile {
-  checks: StoredCheck[];
-  responses: StoredResponse[];
-  purchases: PurchaseRecord[];
-  analyticsEvents: AnalyticsEvent[];
-  auditLogs: AuditLog[];
-  abuseEvents: AbuseEvent[];
-  resultSnapshots: StoredResultSnapshot[];
-}
-
-export interface CreateCheckInput {
-  title: string;
-  activityType: ActivityType;
-  currentIdea?: string | undefined;
-  vibe?: Vibe | undefined;
-  customConstraints?: string[] | undefined;
-}
-
-export interface ResponseInput {
-  status: ResponseStatus;
-  tierId: string;
-  constraintIds: string[];
-  privateNote?: string | undefined;
-  clientNonce?: string | undefined;
-}
-
-function resolveStorePath(): string {
-  const configuredPath = process.env.SAYABLE_STORE_PATH;
-  if (configuredPath) {
-    return configuredPath;
-  }
-  return path.join(process.cwd(), ".sayable-data", "store.json");
-}
-
-const STORE_PATH = resolveStorePath();
-let supabaseStoreClient: SupabaseClient | undefined;
-let supabaseRealtimeClient: SupabaseClient | undefined;
-let storeMutationQueue: Promise<void> = Promise.resolve();
-const SUPABASE_STORE_LOCK_KEY = "sayable_runtime_store";
-
-declare global {
-  var __sayableTokenEncryptionSecret: string | undefined;
-}
-
-function now(): string {
-  return new Date().toISOString();
-}
-
-function tokenEncryptionSecret(): string {
-  if (process.env.SAYABLE_TOKEN_ENCRYPTION_KEY) {
-    return process.env.SAYABLE_TOKEN_ENCRYPTION_KEY;
-  }
-  if (isSupabaseStoreEnabled()) {
-    throw new StoreError(500, "Supabase store backend requires SAYABLE_TOKEN_ENCRYPTION_KEY.");
-  }
-  if (globalThis.__sayableTokenEncryptionSecret) {
-    return globalThis.__sayableTokenEncryptionSecret;
-  }
-  const keyPath = `${STORE_PATH}.key`;
-  if (fs.existsSync(keyPath)) {
-    globalThis.__sayableTokenEncryptionSecret = fs.readFileSync(keyPath, "utf8").trim();
-    return globalThis.__sayableTokenEncryptionSecret;
-  }
-  globalThis.__sayableTokenEncryptionSecret = crypto.randomBytes(32).toString("base64url");
-  fs.mkdirSync(path.dirname(keyPath), { recursive: true });
-  fs.writeFileSync(keyPath, `${globalThis.__sayableTokenEncryptionSecret}\n`, { mode: 0o600 });
-  return globalThis.__sayableTokenEncryptionSecret;
-}
-
-function tokenEncryptionKey(): Buffer {
-  return crypto.createHash("sha256").update(tokenEncryptionSecret()).digest();
-}
-
-function encryptToken(token: string): string {
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv("aes-256-gcm", tokenEncryptionKey(), iv);
-  const encrypted = Buffer.concat([cipher.update(token, "utf8"), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return `v1.${iv.toString("base64url")}.${tag.toString("base64url")}.${encrypted.toString("base64url")}`;
-}
-
-function decryptToken(ciphertext: string): string {
-  const [version, iv, tag, encrypted] = ciphertext.split(".");
-  if (version !== "v1" || !iv || !tag || !encrypted) {
-    throw new StoreError(500, "Guest share link material is unavailable.");
-  }
-  const decipher = crypto.createDecipheriv("aes-256-gcm", tokenEncryptionKey(), Buffer.from(iv, "base64url"));
-  decipher.setAuthTag(Buffer.from(tag, "base64url"));
-  return Buffer.concat([decipher.update(Buffer.from(encrypted, "base64url")), decipher.final()]).toString("utf8");
-}
-
-function blankStore(): StoreFile {
-  return {
-    checks: [],
-    responses: [],
-    purchases: [],
-    analyticsEvents: [],
-    auditLogs: [],
-    abuseEvents: [],
-    resultSnapshots: []
-  };
-}
-
-function normalizeStoredCheck(check: StoredCheck & { guestToken?: string }): StoredCheck {
-  if (check.guestTokenCiphertext) {
-    return check;
-  }
-  if (check.guestToken) {
-    const { guestToken: _guestToken, ...rest } = check;
-    return {
-      ...rest,
-      guestTokenCiphertext: encryptToken(_guestToken),
-      guestTokenHash: check.guestTokenHash || hashToken(_guestToken)
-    };
-  }
-  return check;
-}
-
-function readFileStore(): StoreFile {
-  if (!fs.existsSync(STORE_PATH)) {
-    return blankStore();
-  }
-  const raw = fs.readFileSync(STORE_PATH, "utf8");
-  if (!raw.trim()) {
-    return blankStore();
-  }
-  const parsed = JSON.parse(raw) as Partial<StoreFile>;
-  return {
-    checks: (parsed.checks || []).map(normalizeStoredCheck),
-    responses: parsed.responses || [],
-    purchases: parsed.purchases || [],
-    analyticsEvents: parsed.analyticsEvents || [],
-    auditLogs: parsed.auditLogs || [],
-    abuseEvents: parsed.abuseEvents || [],
-    resultSnapshots: parsed.resultSnapshots || []
-  };
-}
-
-function writeFileStore(store: StoreFile): void {
-  fs.mkdirSync(path.dirname(STORE_PATH), { recursive: true });
-  fs.writeFileSync(STORE_PATH, `${JSON.stringify(store, null, 2)}\n`);
-}
-
-function isSupabaseStoreEnabled(): boolean {
-  return process.env.SAYABLE_STORE_BACKEND === "supabase";
-}
-
-function getSupabaseStoreClient(): SupabaseClient {
-  if (supabaseStoreClient) {
-    return supabaseStoreClient;
-  }
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SAYABLE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    throw new StoreError(500, "Supabase store backend requires NEXT_PUBLIC_SUPABASE_URL and SAYABLE_SUPABASE_SERVICE_ROLE_KEY.");
-  }
-  supabaseStoreClient = createClient(url, key, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false
-    }
-  });
-  return supabaseStoreClient;
-}
-
-function getSupabaseRealtimeClient(): SupabaseClient | null {
-  if (supabaseRealtimeClient) {
-    return supabaseRealtimeClient;
-  }
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SAYABLE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    return null;
-  }
-  supabaseRealtimeClient = createClient(url, key, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false
-    }
-  });
-  return supabaseRealtimeClient;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function acquireSupabaseStoreLock(): Promise<string | undefined> {
-  if (!isSupabaseStoreEnabled()) {
-    return undefined;
-  }
-  const ownerId = `${process.pid}-${crypto.randomUUID()}`;
-  const deadline = Date.now() + 10_000;
-  while (Date.now() < deadline) {
-    const { data, error } = await getSupabaseStoreClient().rpc("try_acquire_sayable_store_lock", {
-      p_lock_key: SUPABASE_STORE_LOCK_KEY,
-      p_owner_id: ownerId,
-      p_ttl_seconds: 20
-    });
-    if (error) {
-      throwSupabaseError(error, "acquire runtime lock");
-    }
-    if (data === true) {
-      return ownerId;
-    }
-    await sleep(80);
-  }
-  throw new StoreError(503, "Sayable is busy saving recent changes. Try again.");
-}
-
-async function releaseSupabaseStoreLock(ownerId: string | undefined): Promise<void> {
-  if (!ownerId || !isSupabaseStoreEnabled()) {
-    return;
-  }
-  const { error } = await getSupabaseStoreClient().rpc("release_sayable_store_lock", {
-    p_lock_key: SUPABASE_STORE_LOCK_KEY,
-    p_owner_id: ownerId
-  });
-  if (error) {
-    console.error("Sayable Supabase store release runtime lock failed", error);
-  }
-}
-
-interface ComfortCheckRow {
-  id: string;
-  owner_user_id: string | null;
-  title: string;
-  activity_type: ActivityType;
-  plan: PlanTier;
-  status: CheckStatus;
-  draft: ComfortDraft;
-  theme_id: string;
-  custom_theme: StoredCheck["customTheme"] | null;
-  guest_token_ciphertext: string;
-  guest_token_hash: string;
-  host_token_hash: string;
-  result_token_hash: string;
-  created_by_fingerprint_hash: string | null;
-  expires_at: string;
-  final_shared_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-interface ResponseRow {
-  id: string;
-  check_id: string;
-  response_token_hash: string;
-  status: ResponseStatus;
-  tier_id: string;
-  constraint_ids: string[];
-  private_note: string | null;
-  client_nonce_hash: string | null;
-  created_at: string;
-  updated_at: string | null;
-  deleted_at: string | null;
-}
-
-interface PurchaseRow {
-  id: string;
-  check_id: string;
-  product_type: "premium_check_upgrade";
-  amount_cents: 499;
-  mode: "mock" | "test";
-  status: "completed" | "failed" | "cancelled";
-  created_at: string;
-}
-
-interface AnalyticsRow {
-  id: string;
-  check_id: string | null;
-  event_name: string;
-  context: Record<string, string | number | boolean | null>;
-  created_at: string;
-}
-
-interface AuditRow {
-  id: string;
-  check_id: string | null;
-  actor_type: AuditLog["actor"];
-  action: string;
-  detail: string;
-  created_at: string;
-}
-
-interface AbuseRow {
-  id: string;
-  route: string;
-  reason: string;
-  fingerprint_hash: string;
-  created_at: string;
-}
-
-interface SnapshotRow {
-  id: string;
-  check_id: string;
-  result_token_hash: string;
-  snapshot: StoredResultSnapshot["snapshot"];
-  created_at: string;
-  deleted_at: string | null;
-}
-
-function mapCheckRow(row: ComfortCheckRow): StoredCheck {
-  return {
-    id: row.id,
-    title: row.title,
-    activityType: row.activity_type,
-    plan: row.plan,
-    status: row.status,
-    draft: row.draft,
-    themeId: row.theme_id,
-    ...(row.custom_theme ? { customTheme: row.custom_theme } : {}),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    expiresAt: row.expires_at,
-    guestTokenCiphertext: row.guest_token_ciphertext,
-    guestTokenHash: row.guest_token_hash,
-    hostTokenHash: row.host_token_hash,
-    resultTokenHash: row.result_token_hash,
-    ...(row.created_by_fingerprint_hash ? { createdByFingerprintHash: row.created_by_fingerprint_hash } : {}),
-    ...(row.owner_user_id ? { ownerUserId: row.owner_user_id } : {}),
-    ...(row.final_shared_at ? { finalSharedAt: row.final_shared_at } : {})
-  };
-}
-
-function mapResponseRow(row: ResponseRow): StoredResponse {
-  return {
-    id: row.id,
-    checkId: row.check_id,
-    responseTokenHash: row.response_token_hash,
-    status: row.status,
-    tierId: row.tier_id,
-    constraintIds: row.constraint_ids,
-    createdAt: row.created_at,
-    ...(row.updated_at ? { updatedAt: row.updated_at } : {}),
-    ...(row.deleted_at ? { deletedAt: row.deleted_at } : {}),
-    ...(row.private_note ? { privateNote: row.private_note } : {}),
-    ...(row.client_nonce_hash ? { clientNonceHash: row.client_nonce_hash } : {})
-  };
-}
-
-function throwSupabaseError(error: unknown, action: string): never {
-  console.error(`Sayable Supabase store ${action} failed`, error);
-  throw new StoreError(500, `Could not ${action} Supabase store.`);
-}
-
-async function selectRows<T>(table: string): Promise<T[]> {
-  const { data, error } = await getSupabaseStoreClient().from(table).select("*");
-  if (error) {
-    throwSupabaseError(error, `read ${table}`);
-  }
-  return (data || []) as T[];
-}
-
-async function readSupabaseStore(): Promise<StoreFile> {
-  const [checks, responses, purchases, analyticsEvents, auditLogs, abuseEvents, resultSnapshots] = await Promise.all([
-    selectRows<ComfortCheckRow>("comfort_checks"),
-    selectRows<ResponseRow>("responses"),
-    selectRows<PurchaseRow>("purchases"),
-    selectRows<AnalyticsRow>("analytics_events"),
-    selectRows<AuditRow>("audit_logs"),
-    selectRows<AbuseRow>("abuse_events"),
-    selectRows<SnapshotRow>("result_snapshots")
-  ]);
-
-  return {
-    checks: checks.map(mapCheckRow),
-    responses: responses.map(mapResponseRow),
-    purchases: purchases.map((purchase) => ({
-      id: purchase.id,
-      checkId: purchase.check_id,
-      productType: purchase.product_type,
-      amountCents: purchase.amount_cents,
-      mode: purchase.mode,
-      status: purchase.status,
-      createdAt: purchase.created_at
-    })),
-    analyticsEvents: analyticsEvents.map((event) => ({
-      id: event.id,
-      name: event.event_name,
-      ...(event.check_id ? { checkId: event.check_id } : {}),
-      createdAt: event.created_at,
-      context: event.context
-    })),
-    auditLogs: auditLogs.map((log) => ({
-      id: log.id,
-      action: log.action,
-      ...(log.check_id ? { checkId: log.check_id } : {}),
-      createdAt: log.created_at,
-      actor: log.actor_type,
-      detail: log.detail
-    })),
-    abuseEvents: abuseEvents.map((event) => ({
-      id: event.id,
-      route: event.route,
-      reason: event.reason,
-      fingerprintHash: event.fingerprint_hash,
-      createdAt: event.created_at
-    })),
-    resultSnapshots: resultSnapshots.map((snapshot) => ({
-      id: snapshot.id,
-      checkId: snapshot.check_id,
-      resultTokenHash: snapshot.result_token_hash,
-      snapshot: snapshot.snapshot,
-      createdAt: snapshot.created_at,
-      ...(snapshot.deleted_at ? { deletedAt: snapshot.deleted_at } : {})
-    }))
-  };
-}
-
-async function clearTable(table: string): Promise<void> {
-  const { error } = await getSupabaseStoreClient().from(table).delete().not("id", "is", null);
-  if (error) {
-    throwSupabaseError(error, `clear ${table}`);
-  }
-}
-
-async function insertRows(table: string, rows: unknown[]): Promise<void> {
-  if (rows.length === 0) {
-    return;
-  }
-  const { error } = await getSupabaseStoreClient().from(table).insert(rows);
-  if (error) {
-    throwSupabaseError(error, `write ${table}`);
-  }
-}
-
-async function writeSupabaseStore(store: StoreFile): Promise<void> {
-  for (const table of ["audit_logs", "analytics_events", "abuse_events", "result_snapshots", "purchases", "responses"]) {
-    await clearTable(table);
-  }
-  await clearTable("comfort_checks");
-
-  await insertRows(
-    "comfort_checks",
-    store.checks.map((check) => ({
-      id: check.id,
-      owner_user_id: check.ownerUserId || null,
-      title: check.title,
-      activity_type: check.activityType,
-      plan: check.plan,
-      status: check.status,
-      draft: check.draft,
-      theme_id: check.themeId,
-      custom_theme: check.customTheme || null,
-      guest_token_ciphertext: check.guestTokenCiphertext,
-      guest_token_hash: check.guestTokenHash,
-      host_token_hash: check.hostTokenHash,
-      result_token_hash: check.resultTokenHash,
-      created_by_fingerprint_hash: check.createdByFingerprintHash || null,
-      expires_at: check.expiresAt,
-      final_shared_at: check.finalSharedAt || null,
-      created_at: check.createdAt,
-      updated_at: check.updatedAt
-    }))
-  );
-  await insertRows(
-    "responses",
-    store.responses.map((response) => ({
-      id: response.id,
-      check_id: response.checkId,
-      response_token_hash: response.responseTokenHash,
-      status: response.status,
-      tier_id: response.tierId,
-      constraint_ids: response.constraintIds,
-      private_note: response.privateNote || null,
-      client_nonce_hash: response.clientNonceHash || null,
-      created_at: response.createdAt,
-      updated_at: response.updatedAt || null,
-      deleted_at: response.deletedAt || null
-    }))
-  );
-  await insertRows(
-    "purchases",
-    store.purchases.map((purchase) => {
-      const check = store.checks.find((candidate) => candidate.id === purchase.checkId);
-      return {
-        id: purchase.id,
-        check_id: purchase.checkId,
-        owner_user_id: check?.ownerUserId || null,
-        product_type: purchase.productType,
-        amount_cents: purchase.amountCents,
-        mode: purchase.mode,
-        status: purchase.status,
-        created_at: purchase.createdAt
-      };
-    })
-  );
-  await insertRows(
-    "result_snapshots",
-    store.resultSnapshots.map((snapshot) => ({
-      id: snapshot.id,
-      check_id: snapshot.checkId,
-      result_token_hash: snapshot.resultTokenHash,
-      snapshot: snapshot.snapshot,
-      created_at: snapshot.createdAt,
-      deleted_at: snapshot.deletedAt || null
-    }))
-  );
-  await insertRows(
-    "analytics_events",
-    store.analyticsEvents.map((event) => ({
-      id: event.id,
-      check_id: event.checkId || null,
-      event_name: event.name,
-      context: event.context,
-      created_at: event.createdAt
-    }))
-  );
-  await insertRows(
-    "audit_logs",
-    store.auditLogs.map((log) => ({
-      id: log.id,
-      check_id: log.checkId || null,
-      actor_type: log.actor,
-      action: log.action,
-      detail: log.detail,
-      created_at: log.createdAt
-    }))
-  );
-  await insertRows(
-    "abuse_events",
-    store.abuseEvents.map((event) => ({
-      id: event.id,
-      route: event.route,
-      reason: event.reason,
-      fingerprint_hash: event.fingerprintHash,
-      created_at: event.createdAt
-    }))
-  );
-}
-
-async function readStore(): Promise<StoreFile> {
-  if (!isSupabaseStoreEnabled()) {
-    return readFileStore();
-  }
-  return readSupabaseStore();
-}
-
-async function writeStore(store: StoreFile): Promise<void> {
-  if (!isSupabaseStoreEnabled()) {
-    writeFileStore(store);
-    return;
-  }
-  await writeSupabaseStore(store);
-}
-
-function checkChangeSignatures(store: StoreFile): Map<string, string> {
-  return new Map(
-    store.checks.map((check) => {
-      const responseState = store.responses
-        .filter((response) => response.checkId === check.id)
-        .map((response) => ({
-          id: response.id,
-          status: response.status,
-          tierId: response.tierId,
-          constraintIds: response.constraintIds,
-          updatedAt: response.updatedAt || response.createdAt,
-          deletedAt: response.deletedAt || null
-        }))
-        .sort((left, right) => left.id.localeCompare(right.id));
-      return [
-        check.id,
-        JSON.stringify({
-          updatedAt: check.updatedAt,
-          status: check.status,
-          plan: check.plan,
-          themeId: check.themeId,
-          customTheme: check.customTheme || null,
-          expiresAt: check.expiresAt,
-          finalSharedAt: check.finalSharedAt || null,
-          draft: check.draft,
-          responses: responseState
-        })
-      ];
-    })
-  );
-}
-
-async function emitCheckChange(checkId: string): Promise<void> {
-  const client = getSupabaseRealtimeClient();
-  if (!client) {
-    return;
-  }
-  const channel = client.channel(`sayable:check:${checkId}`, {
-    config: {
-      broadcast: { ack: true, self: false }
-    }
-  });
-  await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("Supabase Realtime broadcast timed out.")), 1500);
-    channel.subscribe(async (status) => {
-      if (status === "SUBSCRIBED") {
-        const result = await channel.send({
-          type: "broadcast",
-          event: "check_changed",
-          payload: { checkId, updatedAt: now() }
-        });
-        clearTimeout(timer);
-        await client.removeChannel(channel);
-        if (result === "ok") {
-          resolve();
-          return;
-        }
-        reject(new Error("Supabase Realtime broadcast failed."));
-      }
-      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-        clearTimeout(timer);
-        await client.removeChannel(channel);
-        reject(new Error(`Supabase Realtime channel ${status.toLowerCase()}.`));
-      }
-    });
-  });
-}
-
-function notifyChangedChecks(before: Map<string, string>, store: StoreFile): void {
-  const after = checkChangeSignatures(store);
-  for (const [checkId, signature] of after) {
-    if (before.get(checkId) !== signature) {
-      void emitCheckChange(checkId).catch((error) => console.error("Sayable realtime broadcast failed", error));
-    }
-  }
-}
-
-async function mutateStore<T>(mutator: (store: StoreFile) => T): Promise<T> {
-  const run = storeMutationQueue.then(async () => {
-    const lockOwner = await acquireSupabaseStoreLock();
-    try {
-      const store = await readStore();
-      const before = checkChangeSignatures(store);
-      const result = mutator(store);
-      await writeStore(store);
-      notifyChangedChecks(before, store);
-      return result;
-    } finally {
-      await releaseSupabaseStoreLock(lockOwner);
-    }
-  });
-  storeMutationQueue = run.then(
-    () => undefined,
-    () => undefined
-  );
-  return run;
-}
-
-export function publicBaseUrl(): string {
-  return process.env.NEXT_PUBLIC_WEB_BASE_URL || "http://localhost:3000";
-}
-
-export function randomToken(): string {
-  return crypto.randomBytes(32).toString("base64url");
-}
-
-export function hashToken(token: string): string {
-  return crypto.createHash("sha256").update(token).digest("hex");
-}
 
 function isExpired(check: StoredCheck): boolean {
   return new Date(check.expiresAt).getTime() < Date.now();
@@ -809,23 +82,7 @@ function requireUsableCheck(check: StoredCheck): void {
   }
 }
 
-export interface StoreErrorTelemetry {
-  kind?: "token_validation_failed" | "business_rule" | "validation";
-  tokenClass?: "admin" | "guest" | "host" | "response" | "result";
-  reason?: string;
-}
-
 type TokenClass = NonNullable<StoreErrorTelemetry["tokenClass"]>;
-
-export class StoreError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-    public telemetry: StoreErrorTelemetry = {}
-  ) {
-    super(message);
-  }
-}
 
 export function serializeHostCheck(check: StoredCheck): HostVisibleCheck {
   return {
@@ -1365,7 +622,12 @@ export function updateHostCheck(
   });
 }
 
-export function claimCheck(hostToken: string, ownerUserId: string): Promise<StoredCheck> {
+export function claimCheck(
+  hostToken: string,
+  ownerUserId: string,
+  actor: AuditLog["actor"] = "host",
+  mode: "demo_feature_flag" | "supabase_oauth" = "supabase_oauth"
+): Promise<StoredCheck> {
   return mutateStore((store) => {
     const check = requireCheckByToken(store, hostToken, "hostTokenHash", "host", "Host link not found.");
     if (check.ownerUserId && check.ownerUserId !== ownerUserId) {
@@ -1378,15 +640,17 @@ export function claimCheck(hostToken: string, ownerUserId: string): Promise<Stor
       name: "google_sign_in_completed",
       checkId: check.id,
       createdAt: check.updatedAt,
-      context: { mode: "demo_feature_flag" }
+      context: { mode }
     });
     store.auditLogs.push({
       id: crypto.randomUUID(),
       action: "check_claimed",
       checkId: check.id,
       createdAt: check.updatedAt,
-      actor: "demo_user",
-      detail: "Token-created check claimed into signed demo auth session."
+      actor,
+      detail: mode === "demo_feature_flag"
+        ? "Token-created check claimed into signed demo auth session."
+        : "Token-created check claimed into Supabase Auth host account."
     });
     return check;
   });
@@ -1431,7 +695,9 @@ export function deleteOwnerAccount(ownerUserId: string): Promise<{ deletedChecks
 export function upgradeCheck(
   hostToken: string,
   outcome: "success" | "failed" | "cancelled" = "success",
-  ownerUserId?: string
+  ownerUserId?: string,
+  mode: "mock" | "test" = "mock",
+  stripeIds: { checkoutSessionId?: string; paymentIntentId?: string } = {}
 ): Promise<PurchaseRecord> {
   return mutateStore((store) => {
     const check = requireCheckByToken(store, hostToken, "hostTokenHash", "host", "Host link not found.");
@@ -1448,9 +714,11 @@ export function upgradeCheck(
         checkId: check.id,
         productType: "premium_check_upgrade",
         amountCents: 499,
-        mode: process.env.STRIPE_MODE === "test" ? "test" : "mock",
+        mode,
         status: outcome === "failed" ? "failed" : "cancelled",
-        createdAt: now()
+        createdAt: now(),
+        ...(stripeIds.checkoutSessionId ? { stripeCheckoutSessionId: stripeIds.checkoutSessionId } : {}),
+        ...(stripeIds.paymentIntentId ? { stripePaymentIntentId: stripeIds.paymentIntentId } : {})
       };
       store.purchases.push(failed);
       store.analyticsEvents.push({
@@ -1478,9 +746,11 @@ export function upgradeCheck(
       checkId: check.id,
       productType: "premium_check_upgrade",
       amountCents: 499,
-      mode: process.env.STRIPE_MODE === "test" ? "test" : "mock",
+      mode,
       status: "completed",
-      createdAt: now()
+      createdAt: now(),
+      ...(stripeIds.checkoutSessionId ? { stripeCheckoutSessionId: stripeIds.checkoutSessionId } : {}),
+      ...(stripeIds.paymentIntentId ? { stripePaymentIntentId: stripeIds.paymentIntentId } : {})
     };
     check.plan = "premium";
     if (check.themeId === "sayable_default") {
@@ -1508,7 +778,105 @@ export function upgradeCheck(
   });
 }
 
-export function markFinalShared(hostToken: string): Promise<{ check: StoredCheck; resultToken: string }> {
+export function startPremiumCheckout(
+  hostToken: string,
+  ownerUserId: string,
+  checkoutSessionId: string
+): Promise<PurchaseRecord> {
+  return mutateStore((store) => {
+    const check = requireCheckByToken(store, hostToken, "hostTokenHash", "host", "Host link not found.");
+    if (!check.ownerUserId) {
+      throw new StoreError(401, "Save this Comfort Check with Google before upgrading.");
+    }
+    if (ownerUserId !== check.ownerUserId) {
+      throw new StoreError(403, "This Premium Check upgrade belongs to a different host account.");
+    }
+    requireUsableCheck(check);
+    if (check.plan === "premium") {
+      throw new StoreError(409, "This Comfort Check is already Premium.");
+    }
+    const startedAt = now();
+    const purchase: PurchaseRecord = {
+      id: crypto.randomUUID(),
+      checkId: check.id,
+      productType: "premium_check_upgrade",
+      amountCents: 499,
+      mode: "test",
+      status: "started",
+      stripeCheckoutSessionId: checkoutSessionId,
+      createdAt: startedAt
+    };
+    store.purchases.push(purchase);
+    store.analyticsEvents.push({
+      id: crypto.randomUUID(),
+      name: "premium_mock_checkout_started",
+      checkId: check.id,
+      createdAt: startedAt,
+      context: { mode: "test", product_type: "premium_check_upgrade" }
+    });
+    store.auditLogs.push({
+      id: crypto.randomUUID(),
+      action: "premium_test_checkout_started",
+      checkId: check.id,
+      createdAt: startedAt,
+      actor: "host",
+      detail: "Stripe test checkout session created for Premium Check."
+    });
+    return purchase;
+  });
+}
+
+export function completePremiumCheckoutBySession(
+  checkoutSessionId: string,
+  paymentIntentId?: string
+): Promise<PurchaseRecord> {
+  return mutateStore((store) => {
+    const purchase = store.purchases.find(
+      (candidate) => candidate.stripeCheckoutSessionId === checkoutSessionId && candidate.status === "started"
+    );
+    if (!purchase) {
+      throw new StoreError(404, "Premium checkout session was not found.");
+    }
+    const check = store.checks.find((candidate) => candidate.id === purchase.checkId);
+    if (!check) {
+      throw new StoreError(404, "Comfort Check not found.");
+    }
+    requireUsableCheck(check);
+    const completedAt = now();
+    purchase.status = "completed";
+    if (paymentIntentId) {
+      purchase.stripePaymentIntentId = paymentIntentId;
+    }
+    check.plan = "premium";
+    if (check.themeId === "sayable_default") {
+      check.themeId = defaultThemeForActivity(check.activityType);
+    }
+    check.expiresAt = addDays(new Date(), getPlanLimits("premium").retentionDays);
+    check.updatedAt = completedAt;
+    store.analyticsEvents.push({
+      id: crypto.randomUUID(),
+      name: "premium_mock_checkout_completed",
+      checkId: check.id,
+      createdAt: completedAt,
+      context: { mode: "test", product_type: "premium_check_upgrade" }
+    });
+    store.auditLogs.push({
+      id: crypto.randomUUID(),
+      action: "premium_test_checkout_completed",
+      checkId: check.id,
+      createdAt: completedAt,
+      actor: "system",
+      detail: "Verified Stripe test checkout completed Premium Check upgrade."
+    });
+    return purchase;
+  });
+}
+
+export function markFinalShared(hostToken: string): Promise<{
+  check: StoredCheck;
+  resultToken: string;
+  finalMessage: string;
+}> {
   return mutateStore((store) => {
     const check = requireCheckByToken(store, hostToken, "hostTokenHash", "host", "Host link not found.");
     requireUsableCheck(check);
@@ -1535,7 +903,7 @@ export function markFinalShared(hostToken: string): Promise<{ check: StoredCheck
       snapshot: result.publicSnapshot,
       createdAt: check.finalSharedAt
     });
-    return { check, resultToken };
+    return { check, resultToken, finalMessage: result.finalMessage };
   });
 }
 
@@ -1594,5 +962,5 @@ export async function adminSnapshot() {
 }
 
 export async function resetLocalStoreForTests(): Promise<void> {
-  await writeStore(blankStore());
+  await resetStoreForTests();
 }

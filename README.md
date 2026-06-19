@@ -52,7 +52,7 @@ Local smoke defaults to `SAYABLE_STORE_BACKEND=file`, writing `.sayable-data/sto
 ## MVP limitations
 
 - Google OAuth is feature-flagged. Local demo browser claims work only with `SAYABLE_DEMO_AUTH_ENABLED=true`; production should leave demo auth disabled and use Supabase Auth.
-- Stripe Checkout is behind an adapter-shaped mock route; real test-mode keys are not configured.
+- Stripe Checkout is behind an adapter boundary. `STRIPE_MODE=mock` supports local smoke outcomes; `STRIPE_MODE=test` creates Checkout Sessions when test keys are configured and unlocks Premium only from the verified webhook path.
 - Independent adversarial convergence loops and `/criticality-loop` are recorded as required gates in `validation/adversarial-loops.md` and still need to be run to final completion.
 
 Launch packaging, production env, deployment, and screenshot capture notes are in `docs/launch.md`.
