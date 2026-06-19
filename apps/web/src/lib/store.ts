@@ -401,6 +401,7 @@ export function submitResponse(
       tierId: input.tierId,
       constraintIds: uniqueKnownConstraintIds(check.draft, input.constraintIds),
       createdAt,
+      updatedAt: createdAt,
       clientNonceHash,
       ...(input.privateNote?.trim() ? { privateNote: input.privateNote.trim().slice(0, 500) } : {})
     };

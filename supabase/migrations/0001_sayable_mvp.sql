@@ -203,6 +203,11 @@ begin
 end;
 $$;
 
+revoke all on function public.try_acquire_sayable_store_lock(text, text, integer) from public, anon, authenticated;
+grant execute on function public.try_acquire_sayable_store_lock(text, text, integer) to service_role;
+revoke all on function public.release_sayable_store_lock(text, text) from public, anon, authenticated;
+grant execute on function public.release_sayable_store_lock(text, text) to service_role;
+
 create or replace function public.replace_sayable_runtime_store(
   p_checks jsonb,
   p_responses jsonb,

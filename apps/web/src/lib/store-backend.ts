@@ -244,7 +244,7 @@ interface ResponseRow {
   private_note: string | null;
   client_nonce_hash: string | null;
   created_at: string;
-  updated_at: string | null;
+  updated_at: string;
   deleted_at: string | null;
 }
 
@@ -326,7 +326,7 @@ function mapResponseRow(row: ResponseRow): StoredResponse {
     tierId: row.tier_id,
     constraintIds: row.constraint_ids,
     createdAt: row.created_at,
-    ...(row.updated_at ? { updatedAt: row.updated_at } : {}),
+    updatedAt: row.updated_at,
     ...(row.deleted_at ? { deletedAt: row.deleted_at } : {}),
     ...(row.private_note ? { privateNote: row.private_note } : {}),
     ...(row.client_nonce_hash ? { clientNonceHash: row.client_nonce_hash } : {})
@@ -436,7 +436,7 @@ function toSupabasePayload(store: StoreFile) {
       private_note: response.privateNote || null,
       client_nonce_hash: response.clientNonceHash || null,
       created_at: response.createdAt,
-      updated_at: response.updatedAt || null,
+      updated_at: response.updatedAt || response.createdAt,
       deleted_at: response.deletedAt || null
     })),
     purchases: store.purchases.map((purchase) => {
