@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import HostReviewClient from "@/components/HostReviewClient";
+import { ownerReviewEndpoints } from "@/components/host-endpoints";
 
 type PageProps = { params: Promise<{ checkId: string }> };
 
@@ -10,12 +11,5 @@ export const metadata: Metadata = {
 
 export default async function DashboardCheckReviewPage({ params }: PageProps) {
   const { checkId } = await params;
-  return (
-    <HostReviewClient
-      apiPath={`/api/dashboard/checks/${checkId}`}
-      resultsPath={`/dashboard/checks/${checkId}/results`}
-      upgradePath={`/api/dashboard/checks/${checkId}/upgrade`}
-      requiresAuth
-    />
-  );
+  return <HostReviewClient endpoints={ownerReviewEndpoints(checkId)} />;
 }

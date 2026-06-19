@@ -6,6 +6,7 @@ import { createClient, type RealtimeChannel, type SupabaseClient } from "@supaba
 import { getTheme, type ComfortDraft, type PlanTier } from "@sayable/core";
 import { Clipboard, MessageCircle, RefreshCw, Share2, ShieldCheck } from "lucide-react";
 import { authHeaders, copyText } from "./client-utils";
+import type { HostResultsEndpoints } from "./host-endpoints";
 
 let realtimeClient: SupabaseClient | null | undefined;
 
@@ -22,10 +23,10 @@ interface HostResultData {
   guestUrl: string;
   responseCount: number;
   deletedResponseCount: number;
-    result: {
-      responseCount: number;
-      privacyThreshold: number;
-      isPrivacySuppressed: boolean;
+  result: {
+    responseCount: number;
+    privacyThreshold: number;
+    isPrivacySuppressed: boolean;
     bestFit: { label: string; detail: string; tone: string };
     comfortRange: { label: string; detail: string };
     currentIdeaWarning?: string;
@@ -55,20 +56,10 @@ function getRealtimeClient(): SupabaseClient | null {
 }
 
 interface HostResultsClientProps {
-  hostToken?: string;
-  apiPath?: string;
-  reviewPath?: string;
-  finalSharePath?: string;
-  requiresAuth?: boolean;
+  endpoints: HostResultsEndpoints;
 }
 
-export default function HostResultsClient({
-  hostToken,
-  apiPath,
-  reviewPath,
-  finalSharePath,
-  requiresAuth = false
-}: HostResultsClientProps) {
+export default function HostResultsClient({ endpoints }: HostResultsClientProps) {
   const [data, setData] = useState<HostResultData | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -76,16 +67,13 @@ export default function HostResultsClient({
   const [isLoading, setIsLoading] = useState(true);
   const [syncMode, setSyncMode] = useState<"connecting" | "live" | "refresh">("connecting");
   const theme = useMemo(() => getTheme(data?.check.themeId), [data?.check.themeId]);
-  const resultsApiPath = apiPath || (hostToken ? `/api/checks/host/${hostToken}` : "");
-  const reviewHref = reviewPath || (hostToken ? `/checks/${hostToken}/review` : "/dashboard");
-  const finalShareApiPath = finalSharePath || (hostToken ? `/api/checks/host/${hostToken}/final-share` : "");
 
   const requestHeaders = useCallback(
     async (headers: Record<string, string> = {}) => ({
       ...headers,
-      ...(requiresAuth ? await authHeaders() : {})
+      ...(endpoints.requiresAuth ? await authHeaders() : {})
     }),
-    [requiresAuth]
+    [endpoints.requiresAuth]
   );
 
   const load = useCallback(
@@ -94,12 +82,7 @@ export default function HostResultsClient({
         setIsLoading(true);
       }
       try {
-        if (!resultsApiPath) {
-          setError("Host results could not be opened.");
-          setIsLoading(false);
-          return;
-        }
-        const response = await fetch(resultsApiPath, { cache: "no-store", headers: await requestHeaders() });
+        const response = await fetch(endpoints.apiPath, { cache: "no-store", headers: await requestHeaders() });
         const payload = (await response.json()) as HostResultData & { error?: string };
         if (!response.ok) {
           setError(payload.error || "Host results could not be opened.");
@@ -113,7 +96,7 @@ export default function HostResultsClient({
         setIsLoading(false);
       }
     },
-    [requestHeaders, resultsApiPath]
+    [endpoints.apiPath, requestHeaders]
   );
 
   useEffect(() => {
@@ -170,11 +153,7 @@ export default function HostResultsClient({
     setMessage("");
     let payload: { message?: string; resultUrl?: string; error?: string };
     try {
-      if (!finalShareApiPath) {
-        setError("Could not generate final share.");
-        return;
-      }
-      const response = await fetch(finalShareApiPath, { method: "POST", headers: await requestHeaders() });
+      const response = await fetch(endpoints.finalSharePath, { method: "POST", headers: await requestHeaders() });
       payload = (await response.json()) as { message?: string; resultUrl?: string; error?: string };
       if (!response.ok || !payload.message) {
         setError(payload.error || "Could not generate final share.");
@@ -336,7 +315,7 @@ export default function HostResultsClient({
                 <Clipboard size={18} aria-hidden />
                 Copy text
               </button>
-              <Link className="btn btn-ghost" href={reviewHref}>
+              <Link className="btn btn-ghost" href={endpoints.reviewPath}>
                 <MessageCircle size={18} aria-hidden />
                 Share guest link
               </Link>

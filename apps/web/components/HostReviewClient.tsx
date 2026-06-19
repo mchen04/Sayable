@@ -25,6 +25,7 @@ import {
   Trash2
 } from "lucide-react";
 import { authHeaders, copyText, postAnalytics } from "./client-utils";
+import type { HostReviewEndpoints } from "./host-endpoints";
 
 interface HostCheck {
   id: string;
@@ -62,20 +63,10 @@ function rememberDashboardHostToken(checkId: string, hostToken: string) {
 }
 
 interface HostReviewClientProps {
-  hostToken?: string;
-  apiPath?: string;
-  resultsPath?: string;
-  upgradePath?: string;
-  requiresAuth?: boolean;
+  endpoints: HostReviewEndpoints;
 }
 
-export default function HostReviewClient({
-  hostToken,
-  apiPath,
-  resultsPath,
-  upgradePath,
-  requiresAuth = false
-}: HostReviewClientProps) {
+export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
   const [data, setData] = useState<HostData | null>(null);
   const [constraints, setConstraints] = useState<ComfortConstraint[]>([]);
   const [newConstraint, setNewConstraint] = useState("");
@@ -91,34 +82,27 @@ export default function HostReviewClient({
 
   const theme = useMemo(() => getTheme(data?.check.themeId), [data?.check.themeId]);
   const limits = data ? getPlanLimits(data.check.plan) : getPlanLimits("free");
-  const reviewApiPath = apiPath || (hostToken ? `/api/checks/host/${hostToken}` : "");
-  const resultsHref = resultsPath || (hostToken ? `/h/${hostToken}` : "/dashboard");
-  const upgradeApiPath = upgradePath || (hostToken ? `/api/checks/host/${hostToken}/upgrade` : "");
 
   const requestHeaders = useCallback(
     async (headers: Record<string, string> = {}) => ({
       ...headers,
-      ...(requiresAuth ? await authHeaders() : {})
+      ...(endpoints.requiresAuth ? await authHeaders() : {})
     }),
-    [requiresAuth]
+    [endpoints.requiresAuth]
   );
 
   const load = useCallback(async () => {
     setError("");
     try {
-      if (!reviewApiPath) {
-        setError("Host link could not be opened.");
-        return;
-      }
-      const response = await fetch(reviewApiPath, { cache: "no-store", headers: await requestHeaders() });
+      const response = await fetch(endpoints.apiPath, { cache: "no-store", headers: await requestHeaders() });
       const payload = (await response.json()) as HostData & { error?: string };
       if (!response.ok) {
         setError(payload.error || "Host link could not be opened.");
         return;
       }
       setData(payload);
-      if (hostToken) {
-        rememberDashboardHostToken(payload.check.id, hostToken);
+      if (endpoints.rememberHostToken && endpoints.hostToken) {
+        rememberDashboardHostToken(payload.check.id, endpoints.hostToken);
       }
       setConstraints(payload.check.draft.constraints);
       setQuestions(payload.check.draft.questions);
@@ -134,7 +118,7 @@ export default function HostReviewClient({
     } catch {
       setError("Network connection dropped while opening this host link. Try again.");
     }
-  }, [hostToken, requestHeaders, reviewApiPath]);
+  }, [endpoints.apiPath, endpoints.hostToken, endpoints.rememberHostToken, requestHeaders]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -149,7 +133,7 @@ export default function HostReviewClient({
     setMessage("");
     setInvalidFieldId("");
     try {
-      const response = await fetch(reviewApiPath, {
+      const response = await fetch(endpoints.apiPath, {
         method: "PATCH",
         headers: await requestHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(body)
@@ -301,14 +285,14 @@ export default function HostReviewClient({
   }
 
   async function claim() {
-    if (!hostToken) {
+    if (!endpoints.hostToken) {
       setError("This saved dashboard check is already tied to your host session.");
       return false;
     }
     setError("");
     try {
       const headers = await authHeaders();
-      const response = await fetch(`/api/checks/host/${hostToken}/claim`, {
+      const response = await fetch(`/api/checks/host/${endpoints.hostToken}/claim`, {
         method: "POST",
         headers
       });
@@ -333,11 +317,7 @@ export default function HostReviewClient({
     }
     setError("");
     try {
-      if (!upgradeApiPath) {
-        setError("Premium checkout is unavailable for this saved check.");
-        return;
-      }
-      const response = await fetch(upgradeApiPath, {
+      const response = await fetch(endpoints.upgradePath, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ outcome })
@@ -568,7 +548,7 @@ export default function HostReviewClient({
                 <Clipboard size={18} aria-hidden />
                 Copy link
               </button>
-              <Link className="btn btn-ghost" href={resultsHref}>
+              <Link className="btn btn-ghost" href={endpoints.resultsPath}>
                 Results
                 <ArrowRight size={18} aria-hidden />
               </Link>
@@ -769,7 +749,7 @@ export default function HostReviewClient({
           <p className="muted">{data.result.responseCount} responses</p>
           <strong>{data.result.bestFit.label}</strong>
           <span className="muted">{data.result.bestFit.detail}</span>
-          <Link className="btn btn-secondary" href={resultsHref}>
+          <Link className="btn btn-secondary" href={endpoints.resultsPath}>
             View host results
             <RefreshCw size={18} aria-hidden />
           </Link>

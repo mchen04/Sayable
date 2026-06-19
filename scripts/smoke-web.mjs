@@ -65,6 +65,12 @@ function runStaticContractChecks() {
       billing.includes("\"metadata[owner_user_id]\""),
     "Stripe test checkout must use a tokenless return route plus metadata"
   );
+  const billingReturn = sourceFile("apps/web/components/BillingReturnClient.tsx");
+  staticAssert(!billingReturn.includes("localStorage"), "Checkout return must not recover raw host tokens from browser storage");
+  staticAssert(
+    billingReturn.includes("/dashboard/checks/${payload.checkId}/review?premium=${premiumStatus}"),
+    "Checkout return must redirect through owner-scoped dashboard review URLs"
+  );
 
   const createForm = sourceFile("apps/web/components/CreateCheckForm.tsx");
   staticAssert(!createForm.includes("getDemoSession"), "Create recovery must use canonical host auth, not demo-only auth");

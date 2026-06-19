@@ -3,15 +3,14 @@ import "server-only";
 import crypto from "node:crypto";
 import {
   completePremiumCheckoutBySession,
-  preflightPremiumCheckout,
-  preflightPremiumCheckoutById,
+  preflightPremiumCheckoutForTarget,
   publicBaseUrl,
-  startPremiumCheckout,
-  startPremiumCheckoutById,
-  upgradeCheck,
-  upgradeCheckById
+  startPremiumCheckoutForTarget,
+  upgradeCheckForTarget,
+  type PremiumCheckoutOutcome,
+  type PremiumCheckoutTarget
 } from "./store";
-import { StoreError } from "./store-types";
+import { type AuditLog, type PurchaseRecord, StoreError } from "./store-types";
 
 interface StripeCheckoutSession {
   id: string;
@@ -33,7 +32,7 @@ interface StripeCheckoutCompletedEvent {
 }
 
 export interface PremiumCheckoutResult {
-  purchase: Awaited<ReturnType<typeof upgradeCheck>>;
+  purchase: PurchaseRecord;
   checkoutUrl?: string;
 }
 
@@ -114,44 +113,41 @@ async function createStripeCheckoutSession(
   return session;
 }
 
-export async function createPremiumCheckout(
-  hostToken: string,
-  ownerUserId: string,
-  actor: "demo_user" | "host",
-  outcome: "success" | "failed" | "cancelled" = "success"
+async function createCheckoutForTarget(
+  target: PremiumCheckoutTarget,
+  actor: Extract<AuditLog["actor"], "demo_user" | "host">,
+  outcome: PremiumCheckoutOutcome = "success"
 ): Promise<PremiumCheckoutResult> {
   if (stripeMode() === "mock") {
     return {
-      purchase: await upgradeCheck(hostToken, outcome, ownerUserId, "mock", {}, actor)
+      purchase: await upgradeCheckForTarget(target, outcome, "mock", {}, actor)
     };
   }
   if (outcome !== "success") {
     throw new StoreError(400, "Checkout outcome simulation is only available in mock mode.");
   }
-  const check = await preflightPremiumCheckout(hostToken, ownerUserId);
-  const session = await createStripeCheckoutSession(ownerUserId, check.id, check.title);
-  const purchase = await startPremiumCheckout(hostToken, ownerUserId, session.id, actor);
+  const check = await preflightPremiumCheckoutForTarget(target);
+  const session = await createStripeCheckoutSession(target.ownerUserId, check.id, check.title);
+  const purchase = await startPremiumCheckoutForTarget(target, session.id, actor);
   return session.url ? { purchase, checkoutUrl: session.url } : { purchase };
+}
+
+export async function createPremiumCheckout(
+  hostToken: string,
+  ownerUserId: string,
+  actor: Extract<AuditLog["actor"], "demo_user" | "host">,
+  outcome: PremiumCheckoutOutcome = "success"
+): Promise<PremiumCheckoutResult> {
+  return createCheckoutForTarget({ type: "hostToken", hostToken, ownerUserId }, actor, outcome);
 }
 
 export async function createPremiumCheckoutForCheck(
   checkId: string,
   ownerUserId: string,
-  actor: "demo_user" | "host",
-  outcome: "success" | "failed" | "cancelled" = "success"
+  actor: Extract<AuditLog["actor"], "demo_user" | "host">,
+  outcome: PremiumCheckoutOutcome = "success"
 ): Promise<PremiumCheckoutResult> {
-  if (stripeMode() === "mock") {
-    return {
-      purchase: await upgradeCheckById(checkId, ownerUserId, outcome, "mock", {}, actor)
-    };
-  }
-  if (outcome !== "success") {
-    throw new StoreError(400, "Checkout outcome simulation is only available in mock mode.");
-  }
-  const check = await preflightPremiumCheckoutById(checkId, ownerUserId);
-  const session = await createStripeCheckoutSession(ownerUserId, check.id, check.title);
-  const purchase = await startPremiumCheckoutById(checkId, ownerUserId, session.id, actor);
-  return session.url ? { purchase, checkoutUrl: session.url } : { purchase };
+  return createCheckoutForTarget({ type: "checkId", checkId, ownerUserId }, actor, outcome);
 }
 
 export async function handleBillingWebhook(payload: string, signatureHeader: string | null): Promise<void> {

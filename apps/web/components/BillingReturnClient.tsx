@@ -12,15 +12,6 @@ interface CheckoutReturn {
   plan: "free" | "premium";
 }
 
-function rememberedHostToken(checkId: string): string {
-  try {
-    const map = JSON.parse(window.localStorage.getItem("sayable_host_token_by_check_id") || "{}") as Record<string, string>;
-    return map[checkId] || "";
-  } catch {
-    return "";
-  }
-}
-
 export default function BillingReturnClient({ sessionId, status }: { sessionId: string; status: string }) {
   const router = useRouter();
   const [message, setMessage] = useState("Confirming Premium checkout...");
@@ -46,12 +37,8 @@ export default function BillingReturnClient({ sessionId, status }: { sessionId: 
         if (cancelled) {
           return;
         }
-        const hostToken = rememberedHostToken(payload.checkId);
-        if (hostToken) {
-          router.replace(`/checks/${hostToken}/review?premium=${status === "cancelled" ? "cancelled" : payload.status}`);
-          return;
-        }
-        setMessage("Premium checkout is tied to your host account. Open the dashboard to continue.");
+        const premiumStatus = status === "cancelled" ? "cancelled" : payload.status;
+        router.replace(`/dashboard/checks/${payload.checkId}/review?premium=${premiumStatus}`);
       } catch (caught) {
         if (!cancelled) {
           setError(caught instanceof Error ? caught.message : "Checkout could not be confirmed.");

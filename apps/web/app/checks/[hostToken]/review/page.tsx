@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import HostReviewClient from "@/components/HostReviewClient";
+import { hostTokenReviewEndpoints } from "@/components/host-endpoints";
 
 type PageProps = { params: Promise<{ hostToken: string }> };
 
@@ -22,5 +23,5 @@ export const metadata: Metadata = {
 
 export default async function HostReviewPage({ params }: PageProps) {
   const { hostToken } = await params;
-  return <HostReviewClient hostToken={hostToken} />;
+  return <HostReviewClient endpoints={hostTokenReviewEndpoints(hostToken)} />;
 }

@@ -36,6 +36,12 @@ import {
   StoreError,
   type StoreErrorTelemetry
 } from "./store-types";
+import {
+  findCheckByToken,
+  requireOwnerCheck,
+  requireUsableCheck,
+  visibleStatus
+} from "./store-check-policy";
 
 export { hashToken, publicBaseUrl, randomToken, StoreError };
 export type {
@@ -54,19 +60,15 @@ export {
   getPremiumCheckoutReturn,
   preflightPremiumCheckout,
   preflightPremiumCheckoutById,
+  preflightPremiumCheckoutForTarget,
   startPremiumCheckout,
   startPremiumCheckoutById,
+  startPremiumCheckoutForTarget,
   upgradeCheck,
-  upgradeCheckById
+  upgradeCheckById,
+  upgradeCheckForTarget
 } from "./store-billing";
-
-function isExpired(check: StoredCheck): boolean {
-  return new Date(check.expiresAt).getTime() < Date.now();
-}
-
-function visibleStatus(check: StoredCheck): CheckStatus {
-  return check.status === "active" && isExpired(check) ? "expired" : check.status;
-}
+export type { PremiumCheckoutOutcome, PremiumCheckoutTarget } from "./store-billing";
 
 function addDays(date: Date, days: number): string {
   const next = new Date(date);
@@ -88,19 +90,6 @@ function assertOwnerActiveFreeLimit(store: StoreFile, ownerUserId: string, exclu
   ).length;
   if (activeForOwner >= getPlanLimits("free").maxActiveChecks) {
     throw new StoreError(429, "Free hosts can keep 3 active Comfort Checks at a time.");
-  }
-}
-
-function requireUsableCheck(check: StoredCheck): void {
-  if (check.status === "deleted") {
-    throw new StoreError(410, "This Comfort Check has been deleted.");
-  }
-  if (check.status === "closed") {
-    throw new StoreError(410, "This Comfort Check is closed.");
-  }
-  if (isExpired(check)) {
-    check.status = "expired";
-    throw new StoreError(410, "This Comfort Check has expired.");
   }
 }
 
@@ -250,10 +239,6 @@ export async function createCheck(
   });
 }
 
-function findCheckByToken(store: StoreFile, token: string, field: "guestTokenHash" | "hostTokenHash" | "resultTokenHash") {
-  return store.checks.find((check) => check[field] === hashToken(token));
-}
-
 function tokenValidationFailure(
   tokenClass: TokenClass,
   token: string,
@@ -278,14 +263,6 @@ function requireCheckByToken(
   const check = findCheckByToken(store, token, field);
   if (!check) {
     tokenValidationFailure(tokenClass, token, 404, message);
-  }
-  return check;
-}
-
-function requireOwnerCheck(store: StoreFile, checkId: string, ownerUserId: string): StoredCheck {
-  const check = store.checks.find((candidate) => candidate.id === checkId && candidate.ownerUserId === ownerUserId);
-  if (!check) {
-    throw new StoreError(404, "Saved Comfort Check not found.");
   }
   return check;
 }
