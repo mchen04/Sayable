@@ -45,6 +45,10 @@ export function runStaticContractChecks() {
   staticAssert(!billing.includes("/checks/${hostToken}/review?premium="), "Stripe URLs must not contain raw host tokens");
   staticAssert(billing.includes('"Idempotency-Key": `sayable-premium-${checkId}`'), "Stripe checkout sessions must use a per-check idempotency key");
   staticAssert(
+    billing.includes("checkoutCapabilities") && billing.includes("canSimulateOutcomes"),
+    "Billing layer must own checkout capability flags"
+  );
+  staticAssert(
     billing.includes("/billing/return?session_id={CHECKOUT_SESSION_ID}") &&
       billing.includes("\"metadata[check_id]\"") &&
       billing.includes("\"metadata[owner_user_id]\""),
@@ -70,6 +74,13 @@ export function runStaticContractChecks() {
   staticAssert(
     storeBilling.includes('reusable.status = "started"'),
     "Retrying a cancelled Stripe session must reuse the same purchase row instead of duplicating session ids"
+  );
+  staticAssert(
+    storeBilling.includes('purchase.status !== "cancelled"') &&
+      !storeBilling.includes("premium_mock_checkout") &&
+      storeBilling.includes("premium_checkout_${status}") &&
+      storeBilling.includes('"premium_checkout_started"'),
+    "Checkout state machine must allow verified completion after browser cancellation and use neutral checkout telemetry"
   );
 
   const billingReturnRoute = sourceFile("apps/web/app/api/billing/return/route.ts");
@@ -105,6 +116,10 @@ export function runStaticContractChecks() {
   const hostReview = sourceFile("apps/web/components/HostReviewClient.tsx");
   staticAssert(!hostReview.includes("sayable_host_token_by_check_id"), "Host review must not persist stale dashboard host-token maps");
   staticAssert(!hostReview.includes("endpoints.hostToken"), "Host review must use explicit claim endpoints, not raw token props");
+  staticAssert(
+    hostReview.includes("data.checkout.canSimulateOutcomes"),
+    "Host review must hide checkout simulation controls unless billing capabilities allow them"
+  );
 
   const hostEndpoints = sourceFile("apps/web/components/host-endpoints.ts");
   staticAssert(
@@ -137,10 +152,14 @@ export function runStaticContractChecks() {
 
   const hostUpgradeRoute = sourceFile("apps/web/app/api/checks/host/[token]/upgrade/route.ts");
   const dashboardUpgradeRoute = sourceFile("apps/web/app/api/dashboard/checks/[checkId]/upgrade/route.ts");
+  const hostCheckRoute = sourceFile("apps/web/app/api/checks/host/[token]/route.ts");
+  const dashboardCheckRoute = sourceFile("apps/web/app/api/dashboard/checks/[checkId]/route.ts");
   staticAssert(
-    !hostUpgradeRoute.includes("premium_mock_checkout_started") &&
-      !dashboardUpgradeRoute.includes("premium_mock_checkout_started"),
-    "Upgrade routes must leave checkout-start analytics inside the billing state machine"
+    !hostUpgradeRoute.includes("premium_mock") &&
+      !dashboardUpgradeRoute.includes("premium_mock") &&
+      hostCheckRoute.includes("checkoutCapabilities") &&
+      dashboardCheckRoute.includes("checkoutCapabilities"),
+    "Upgrade routes must use neutral labels while host review APIs expose billing-owned capabilities"
   );
 
   const storeCheckPolicy = sourceFile("apps/web/src/lib/store-check-policy.ts");
@@ -156,6 +175,9 @@ export function runStaticContractChecks() {
     billingWebhook.includes('enforceRateLimit(request, "billing_webhook"'),
     "Billing webhook route must rate-limit malformed public requests"
   );
+
+  const schemas = sourceFile("apps/web/src/lib/schemas.ts");
+  staticAssert(!schemas.includes("premium_mock_checkout"), "Analytics event names must be neutral across mock and Stripe modes");
 
   const nativeHome = sourceFile("apps/mobile/app/index.tsx");
   staticAssert(nativeHome.includes("creatorNonce"), "Native anonymous create must include a persisted creator nonce");

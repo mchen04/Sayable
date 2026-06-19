@@ -59,14 +59,14 @@ function recordPremiumCheckoutEvent(
 ): void {
   store.analyticsEvents.push({
     id: crypto.randomUUID(),
-    name: `premium_mock_checkout_${status}`,
+    name: `premium_checkout_${status}`,
     checkId: check.id,
     createdAt,
     context: { mode, product_type: "premium_check_upgrade" }
   });
   store.auditLogs.push({
     id: crypto.randomUUID(),
-    action: `premium_${mode}_checkout_${status}`,
+    action: `premium_checkout_${status}`,
     checkId: check.id,
     createdAt,
     actor,
@@ -122,14 +122,14 @@ function recordStartedCheckoutEvent(
 ): void {
   store.analyticsEvents.push({
     id: crypto.randomUUID(),
-    name: "premium_mock_checkout_started",
+    name: "premium_checkout_started",
     checkId: check.id,
     createdAt,
     context: { mode: "test", product_type: "premium_check_upgrade" }
   });
   store.auditLogs.push({
     id: crypto.randomUUID(),
-    action: "premium_test_checkout_started",
+    action: "premium_checkout_started",
     checkId: check.id,
     createdAt,
     actor,
@@ -278,7 +278,7 @@ export function completePremiumCheckoutBySession(
       }
       return purchase;
     }
-    if (purchase.status !== "started") {
+    if (purchase.status !== "started" && purchase.status !== "cancelled" && purchase.status !== "failed") {
       return purchase;
     }
     requireUsableCheck(check);

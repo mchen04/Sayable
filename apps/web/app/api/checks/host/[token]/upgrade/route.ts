@@ -8,7 +8,7 @@ type RouteContext = { params: Promise<{ token: string }> };
 
 export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
-    enforceRateLimit(request, "premium_mock_upgrade", { limit: 10, windowMs: 60_000 });
+    enforceRateLimit(request, "premium_upgrade", { limit: 10, windowMs: 60_000 });
     const input = await parseJson(request, upgradeSchema);
     const session = await requireHostSession(request);
     const { token } = await params;

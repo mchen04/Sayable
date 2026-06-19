@@ -1,4 +1,5 @@
 import { type NextRequest } from "next/server";
+import { checkoutCapabilities } from "@/src/lib/billing";
 import { requireHostSession } from "@/src/lib/host-auth";
 import { getOwnerCheck, serializeHostCheck, updateOwnerCheck } from "@/src/lib/store";
 import { updateCheckSchema } from "@/src/lib/schemas";
@@ -12,7 +13,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     const session = await requireHostSession(request);
     const { checkId } = await params;
     const data = await getOwnerCheck(checkId, session.sub);
-    return json({ ...data, check: serializeHostCheck(data.check) });
+    return json({ ...data, check: serializeHostCheck(data.check), checkout: checkoutCapabilities() });
   } catch (error) {
     return handleApiError(error, request);
   }

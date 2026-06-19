@@ -41,6 +41,9 @@ interface HostCheck {
 interface HostData {
   check: HostCheck;
   guestUrl: string;
+  checkout: {
+    canSimulateOutcomes: boolean;
+  };
   result: {
     responseCount: number;
     isPrivacySuppressed: boolean;
@@ -322,10 +325,10 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
         window.location.assign(payload.checkoutUrl);
         return;
       }
-      setMessage(outcome === "success" ? "Premium Check unlocked." : `Mock checkout ${outcome}.`);
+      setMessage(outcome === "success" ? "Premium Check unlocked." : `Checkout ${outcome}.`);
       await load();
     } catch {
-      setError("Network connection dropped during mock checkout. Try again; duplicate upgrades stay blocked.");
+      setError("Network connection dropped during checkout. Try again; duplicate upgrades stay blocked.");
     }
   }
 
@@ -721,17 +724,19 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
                 <Crown size={18} aria-hidden />
                 Unlock Premium
               </button>
-              <details className="checkout-test-controls">
-                <summary>Checkout test states</summary>
-                <div className="button-row">
-                  <button className="btn btn-ghost" type="button" onClick={() => upgrade("cancelled")}>
-                    Test cancelled checkout
-                  </button>
-                  <button className="btn btn-ghost" type="button" onClick={() => upgrade("failed")}>
-                    Test declined checkout
-                  </button>
-                </div>
-              </details>
+              {data.checkout.canSimulateOutcomes ? (
+                <details className="checkout-test-controls">
+                  <summary>Checkout test states</summary>
+                  <div className="button-row">
+                    <button className="btn btn-ghost" type="button" onClick={() => upgrade("cancelled")}>
+                      Test cancelled checkout
+                    </button>
+                    <button className="btn btn-ghost" type="button" onClick={() => upgrade("failed")}>
+                      Test declined checkout
+                    </button>
+                  </div>
+                </details>
+              ) : null}
             </div>
           )}
         </div>

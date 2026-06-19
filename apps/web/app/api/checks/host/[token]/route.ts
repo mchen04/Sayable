@@ -1,4 +1,5 @@
 import { type NextRequest } from "next/server";
+import { checkoutCapabilities } from "@/src/lib/billing";
 import { getHostCheck, getHostCheckForApi, logAnalytics, serializeHostCheck, updateHostCheck } from "@/src/lib/store";
 import { updateCheckSchema } from "@/src/lib/schemas";
 import { enforceRateLimit, handleApiError, json, parseJson } from "@/src/lib/http";
@@ -11,7 +12,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     const { token } = await params;
     const data = await getHostCheck(token);
     logAnalytics("host_results_viewed", { status: data.check.status }, data.check.id);
-    return json({ ...data, check: serializeHostCheck(data.check) });
+    return json({ ...data, check: serializeHostCheck(data.check), checkout: checkoutCapabilities() });
   } catch (error) {
     return handleApiError(error, request);
   }

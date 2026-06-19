@@ -30,7 +30,8 @@ const env = {
   SAYABLE_DEMO_AUTH_ENABLED: "true",
   SAYABLE_DEMO_AUTH_SECRET: crypto.randomBytes(32).toString("base64url"),
   SAYABLE_TRUST_PROXY_HEADERS: "true",
-  STRIPE_MODE: "mock"
+  STRIPE_MODE: "mock",
+  STRIPE_WEBHOOK_SECRET: "smoke-stripe-webhook-secret"
 };
 
 runStaticContractChecks();
@@ -149,6 +150,15 @@ async function createCheckWithOptions(activityType, { hostIndex = 1, token, titl
 
 function clientNonce(label) {
   return `smoke-client-nonce-${label}-0123456789`;
+}
+
+function stripeSignature(payload) {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const signature = crypto
+    .createHmac("sha256", "smoke-stripe-webhook-secret")
+    .update(`${timestamp}.${payload}`)
+    .digest("hex");
+  return `t=${timestamp},v1=${signature}`;
 }
 
 async function demoSession() {
@@ -616,6 +626,32 @@ async function main() {
     ),
     "cancelled return should leave no active checkout for the check"
   );
+  const completedWebhookPayload = JSON.stringify({
+    type: "checkout.session.completed",
+    data: {
+      object: {
+        id: cancelledSessionId,
+        payment_intent: "pi_smoke_cancelled_then_completed",
+        metadata: {
+          check_id: cancelledReturnClaim.body.check.id,
+          owner_user_id: cancelledReturnSession.ownerUserId
+        }
+      }
+    }
+  });
+  const completedWebhook = await request("/api/billing/webhook", {
+    method: "POST",
+    headers: { "stripe-signature": stripeSignature(completedWebhookPayload) },
+    body: completedWebhookPayload
+  });
+  assert(completedWebhook.response.ok, "completed webhook after cancelled return failed");
+  const completedAfterCancelReturn = await request(`/api/checks/host/${cancelledReturnCheck.hostToken}`);
+  assert(completedAfterCancelReturn.body.check.plan === "premium", "verified webhook should unlock after browser cancel return");
+  const storeAfterCancelCompletion = JSON.parse(readFileSync(storePath, "utf8"));
+  const completedPurchase = storeAfterCancelCompletion.purchases.find(
+    (purchase) => purchase.stripeCheckoutSessionId === cancelledSessionId
+  );
+  assert(completedPurchase?.status === "completed", "verified webhook should complete the cancelled purchase row");
 
   const queryOnlyDashboard = await request(`/api/dashboard?ownerUserId=demo_smoke_user`);
   assert(queryOnlyDashboard.response.status === 401, "dashboard should reject query-only owner access");
@@ -699,7 +735,7 @@ async function main() {
     headers: { "x-sayable-admin-token": "smoke-admin-token" }
   });
   const auditActions = adminAfterSensitiveActions.body.auditLogs.map((entry) => entry.action);
-  for (const action of ["check_claimed", "premium_mock_checkout_completed", "response_deleted", "host_closed"]) {
+  for (const action of ["check_claimed", "premium_checkout_completed", "response_deleted", "host_closed"]) {
     assert(auditActions.includes(action), `audit logs missing ${action}`);
   }
 

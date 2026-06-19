@@ -36,8 +36,18 @@ export interface PremiumCheckoutResult {
   checkoutUrl?: string;
 }
 
+export interface PremiumCheckoutCapabilities {
+  canSimulateOutcomes: boolean;
+}
+
 function stripeMode(): "mock" | "test" {
   return process.env.STRIPE_MODE === "test" ? "test" : "mock";
+}
+
+export function checkoutCapabilities(): PremiumCheckoutCapabilities {
+  return {
+    canSimulateOutcomes: stripeMode() === "mock"
+  };
 }
 
 function requireStripeTestConfig() {
