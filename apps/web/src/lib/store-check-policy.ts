@@ -32,31 +32,20 @@ export function findCheckByToken(store: StoreFile, token: string, field: CheckTo
   return store.checks.find((check) => check[field] === hashToken(token));
 }
 
-function recordTokenAbuse(store: StoreFile, tokenClass: TokenClass, token: string): void {
-  store.abuseEvents.push({
-    id: crypto.randomUUID(),
-    route: `token:${tokenClass}`,
-    reason: "invalid_token",
-    fingerprintHash: hashToken(token),
-    createdAt: now()
-  });
-}
-
-function persistTokenAbuse(tokenClass: TokenClass, token: string): void {
+function persistInvalidTokenAbuse(tokenClass: TokenClass, token: string): void {
   void mutateStore((store) => {
-    recordTokenAbuse(store, tokenClass, token);
+    store.abuseEvents.push({
+      id: crypto.randomUUID(),
+      route: `token:${tokenClass}`,
+      reason: "invalid_token",
+      fingerprintHash: hashToken(token),
+      createdAt: now()
+    });
   }).catch((error) => console.error("Sayable token abuse log failed", error));
 }
 
-export function tokenValidationFailure(
-  store: StoreFile,
-  tokenClass: TokenClass,
-  token: string,
-  status: number,
-  message: string
-): never {
-  recordTokenAbuse(store, tokenClass, token);
-  persistTokenAbuse(tokenClass, token);
+export function tokenValidationFailure(tokenClass: TokenClass, token: string, status: number, message: string): never {
+  persistInvalidTokenAbuse(tokenClass, token);
   throw new StoreError(status, message, {
     kind: "token_validation_failed",
     tokenClass,
@@ -73,7 +62,7 @@ export function requireCheckByToken(
 ): StoredCheck {
   const check = findCheckByToken(store, token, field);
   if (!check) {
-    tokenValidationFailure(store, tokenClass, token, 404, notFoundMessage);
+    tokenValidationFailure(tokenClass, token, 404, notFoundMessage);
   }
   return check;
 }

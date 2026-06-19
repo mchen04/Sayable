@@ -433,6 +433,24 @@ async function main() {
   assert(longOgImage.ok, `long OG image failed: ${longOgImage.status}`);
   assert((longOgSvg.match(/<tspan/g) || []).length >= 4, "long OG image should wrap title/detail into bounded tspans");
   assert(!longOgSvg.includes('font-size="72"'), "long OG image should use reduced wrapped title sizing");
+  let throttledOgImage;
+  for (let index = 0; index < 121; index += 1) {
+    const response = await fetch(`${baseUrl}/api/og/check/default`, {
+      headers: { "x-forwarded-for": "203.0.119.7" }
+    });
+    if (response.status === 429) {
+      throttledOgImage = response;
+      break;
+    }
+    assert(response.ok, `OG preview request ${index + 1} failed before throttling: ${response.status}`);
+  }
+  assert(throttledOgImage?.status === 429, "OG preview should eventually rate-limit repeated requests");
+  assert(
+    throttledOgImage.headers.get("content-type")?.includes("image/svg+xml"),
+    "OG rate-limit response should stay image/svg+xml"
+  );
+  const throttledOgSvg = await throttledOgImage.text();
+  assert(throttledOgSvg.includes("Too many preview requests"), "OG rate-limit response should explain throttling");
 
   const session = await demoSession();
   const claim = await request(`/api/checks/host/${hostToken}/claim`, {

@@ -129,8 +129,26 @@ export function runStaticContractChecks() {
     "OG preview must not use token-validation failures as normal control flow"
   );
   staticAssert(
-    ogRoute.includes('enforceRateLimit(request, "og_preview"') && ogRoute.includes("isActiveForPreview"),
-    "OG preview route must rate-limit public token lookup and account for expiration"
+    ogRoute.includes('enforceRateLimit(request, "og_preview"') &&
+      ogRoute.includes("svgResponse(unavailablePayload(detail), status)") &&
+      ogRoute.includes("isActiveForPreview"),
+    "OG preview route must rate-limit public token lookup with an image error response and account for expiration"
+  );
+
+  const hostUpgradeRoute = sourceFile("apps/web/app/api/checks/host/[token]/upgrade/route.ts");
+  const dashboardUpgradeRoute = sourceFile("apps/web/app/api/dashboard/checks/[checkId]/upgrade/route.ts");
+  staticAssert(
+    !hostUpgradeRoute.includes("premium_mock_checkout_started") &&
+      !dashboardUpgradeRoute.includes("premium_mock_checkout_started"),
+    "Upgrade routes must leave checkout-start analytics inside the billing state machine"
+  );
+
+  const storeCheckPolicy = sourceFile("apps/web/src/lib/store-check-policy.ts");
+  staticAssert(
+      storeCheckPolicy.includes("persistInvalidTokenAbuse") &&
+      !storeCheckPolicy.includes("recordTokenAbuse") &&
+      !/tokenValidationFailure\(\s*store/.test(storeCheckPolicy),
+    "Token validation failures must use one persisted abuse path without dead in-memory mutation"
   );
 
   const billingWebhook = sourceFile("apps/web/app/api/billing/webhook/route.ts");

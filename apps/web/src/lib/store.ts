@@ -295,7 +295,7 @@ export async function getSnapshot(resultToken: string) {
     (candidate) => candidate.resultTokenHash === tokenHash && !candidate.deletedAt
   );
   if (!snapshot) {
-    tokenValidationFailure(store, "result", resultToken, 404, "Result snapshot not found.");
+    tokenValidationFailure("result", resultToken, 404, "Result snapshot not found.");
   }
   const check = store.checks.find((candidate) => candidate.id === snapshot.checkId);
   if (!check || check.status === "deleted") {
@@ -395,7 +395,7 @@ export async function getResponse(responseToken: string): Promise<StoredResponse
   const store = await readStore();
   const response = store.responses.find((candidate) => candidate.responseTokenHash === hashToken(responseToken));
   if (!response || response.deletedAt) {
-    tokenValidationFailure(store, "response", responseToken, 404, "Response token not found.");
+    tokenValidationFailure("response", responseToken, 404, "Response token not found.");
   }
   return response;
 }
@@ -404,7 +404,7 @@ export function updateResponse(responseToken: string, input: ResponseInput): Pro
   return mutateStore((store) => {
     const response = store.responses.find((candidate) => candidate.responseTokenHash === hashToken(responseToken));
     if (!response || response.deletedAt) {
-      tokenValidationFailure(store, "response", responseToken, 404, "Response token not found.");
+      tokenValidationFailure("response", responseToken, 404, "Response token not found.");
     }
     const check = store.checks.find((candidate) => candidate.id === response.checkId);
     if (!check) {
@@ -437,7 +437,7 @@ export function deleteResponse(responseToken: string): Promise<StoredResponse> {
   return mutateStore((store) => {
     const response = store.responses.find((candidate) => candidate.responseTokenHash === hashToken(responseToken));
     if (!response || response.deletedAt) {
-      tokenValidationFailure(store, "response", responseToken, 404, "Response token not found or already deleted.");
+      tokenValidationFailure("response", responseToken, 404, "Response token not found or already deleted.");
     }
     const deletedAt = now();
     response.deletedAt = deletedAt;

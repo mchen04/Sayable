@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getTheme } from "@sayable/core";
-import { getPreviewByToken } from "@/src/lib/store";
+import { getPreviewByToken, StoreError } from "@/src/lib/store";
 import { enforceRateLimit } from "@/src/lib/http";
 
 type RouteContext = { params: Promise<{ token: string }> };
@@ -89,55 +89,70 @@ function isActiveForPreview(check: { status: string; expiresAt: string }): boole
   return check.status === "active" && new Date(check.expiresAt).getTime() >= Date.now();
 }
 
-export async function GET(request: NextRequest, { params }: RouteContext) {
-  enforceRateLimit(request, "og_preview", { limit: 120, windowMs: 60_000 });
-  const { token } = await params;
-  let payload = {
-    title: "Comfort Check",
-    eyebrow: "Private group-chat planning",
-    detail: "Open the guest link to answer without an account.",
+function unavailablePayload(detail = "This link is expired, deleted, or no longer public.") {
+  return {
+    title: "Comfort Check unavailable",
+    eyebrow: "Sayable",
+    detail,
     ...getTheme("sayable_default")
   };
+}
 
-  if (token !== "default") {
-    try {
-      const preview = await getPreviewByToken(token);
-      const theme = getTheme(preview.check.themeId);
-      if (preview.kind === "result") {
-        payload = {
-          title: preview.check.title,
-          eyebrow: `${preview.check.draft.activityLabel} Comfort Check result`,
-          detail: preview.result.publicSnapshot.detail,
-          ...theme,
-          ...(preview.check.customTheme ? { accent: preview.check.customTheme.accent } : {})
-        };
-      } else {
-        const isActive = isActiveForPreview(preview.check);
-        payload = {
-          title: isActive ? preview.check.title : "Comfort Check unavailable",
-          eyebrow: `${preview.check.draft.activityLabel} Comfort Check${isActive ? "" : " unavailable"}`,
-          detail:
-            isActive
-              ? "Private answers, group-safe result."
-              : "This Sayable guest link is no longer accepting responses.",
-          ...theme,
-          ...(preview.check.customTheme ? { accent: preview.check.customTheme.accent } : {})
-        };
-      }
-    } catch {
-      payload = {
-        title: "Comfort Check unavailable",
-        eyebrow: "Sayable",
-        detail: "This link is expired, deleted, or no longer public.",
-        ...getTheme("sayable_default")
-      };
-    }
-  }
-
+function svgResponse(payload: Parameters<typeof svgTemplate>[0], status = 200): Response {
   return new Response(svgTemplate(payload), {
+    status,
     headers: {
       "Content-Type": "image/svg+xml; charset=utf-8",
       "Cache-Control": "no-store"
     }
   });
+}
+
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  try {
+    enforceRateLimit(request, "og_preview", { limit: 120, windowMs: 60_000 });
+    const { token } = await params;
+    let payload = {
+      title: "Comfort Check",
+      eyebrow: "Private group-chat planning",
+      detail: "Open the guest link to answer without an account.",
+      ...getTheme("sayable_default")
+    };
+
+    if (token !== "default") {
+      try {
+        const preview = await getPreviewByToken(token);
+        const theme = getTheme(preview.check.themeId);
+        if (preview.kind === "result") {
+          payload = {
+            title: preview.check.title,
+            eyebrow: `${preview.check.draft.activityLabel} Comfort Check result`,
+            detail: preview.result.publicSnapshot.detail,
+            ...theme,
+            ...(preview.check.customTheme ? { accent: preview.check.customTheme.accent } : {})
+          };
+        } else {
+          const isActive = isActiveForPreview(preview.check);
+          payload = {
+            title: isActive ? preview.check.title : "Comfort Check unavailable",
+            eyebrow: `${preview.check.draft.activityLabel} Comfort Check${isActive ? "" : " unavailable"}`,
+            detail:
+              isActive
+                ? "Private answers, group-safe result."
+                : "This Sayable guest link is no longer accepting responses.",
+            ...theme,
+            ...(preview.check.customTheme ? { accent: preview.check.customTheme.accent } : {})
+          };
+        }
+      } catch {
+        payload = unavailablePayload();
+      }
+    }
+
+    return svgResponse(payload);
+  } catch (error) {
+    const status = error instanceof StoreError ? error.status : 500;
+    const detail = status === 429 ? "Too many preview requests. Try again in a moment." : undefined;
+    return svgResponse(unavailablePayload(detail), status);
+  }
 }
