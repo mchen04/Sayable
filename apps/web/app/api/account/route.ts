@@ -7,7 +7,7 @@ export async function DELETE(request: NextRequest) {
   try {
     enforceRateLimit(request, "account_delete", { limit: 6, windowMs: 60_000 });
     const session = await requireHostSession(request);
-    const result = await deleteOwnerAccount(session.sub);
+    const result = await deleteOwnerAccount(session.sub, session.actor);
     logAudit("account_delete_requested", "Signed host deleted account-owned Comfort Checks.", session.actor);
     return json({ ok: true, ...result });
   } catch (error) {

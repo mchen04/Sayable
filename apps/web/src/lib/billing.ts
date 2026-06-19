@@ -59,19 +59,20 @@ async function createStripeCheckoutSession(hostToken: string, checkId: string, c
 export async function createPremiumCheckout(
   hostToken: string,
   ownerUserId: string,
+  actor: "demo_user" | "host",
   outcome: "success" | "failed" | "cancelled" = "success",
   checkId = "comfort-check",
   checkTitle = "Comfort Check"
 ): Promise<PremiumCheckoutResult> {
   if (stripeMode() === "mock") {
     return {
-      purchase: await upgradeCheck(hostToken, outcome, ownerUserId, "mock")
+      purchase: await upgradeCheck(hostToken, outcome, ownerUserId, "mock", {}, actor)
     };
   }
   if (outcome !== "success") {
     throw new StoreError(400, "Checkout outcome simulation is only available in mock mode.");
   }
   const session = await createStripeCheckoutSession(hostToken, checkId, checkTitle);
-  const purchase = await startPremiumCheckout(hostToken, ownerUserId, session.id);
+  const purchase = await startPremiumCheckout(hostToken, ownerUserId, session.id, actor);
   return session.url ? { purchase, checkoutUrl: session.url } : { purchase };
 }

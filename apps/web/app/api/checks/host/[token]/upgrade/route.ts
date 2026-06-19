@@ -15,7 +15,14 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     logAnalytics("premium_mock_checkout_started", {});
     const { token } = await params;
     const hostData = await getHostCheckForApi(token);
-    const result = await createPremiumCheckout(token, session.sub, input.outcome || "success", hostData.check.id, hostData.check.title);
+    const result = await createPremiumCheckout(
+      token,
+      session.sub,
+      session.actor,
+      input.outcome || "success",
+      hostData.check.id,
+      hostData.check.title
+    );
     return json(result);
   } catch (error) {
     return handleApiError(error, request);

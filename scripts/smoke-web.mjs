@@ -650,6 +650,15 @@ async function main() {
     JSON.stringify(ownerCapStatuses) === JSON.stringify([201, 201, 201, 429]),
     `signed owner active cap failed: ${ownerCapStatuses.join(",")}`
   );
+  const anonymousFourth = await createCheck("casual_hangout", 74);
+  const fourthClaim = await request(`/api/checks/host/${anonymousFourth.hostToken}/claim`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${ownerCapSession.token}` }
+  });
+  assert(
+    fourthClaim.response.status === 429,
+    `signed owner claim cap should reject a fourth active free check: ${fourthClaim.response.status}`
+  );
 
   const limitCheck = await createCheck("custom", 50);
   const created = [];

@@ -67,3 +67,10 @@ export async function requireHostSession(request: NextRequest): Promise<HostSess
   }
   return verifySupabaseBearer(token);
 }
+
+export async function optionalHostSession(request: NextRequest): Promise<HostSession | undefined> {
+  if (!bearerToken(request)) {
+    return undefined;
+  }
+  return requireHostSession(request);
+}

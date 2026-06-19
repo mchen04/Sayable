@@ -69,6 +69,19 @@ function activeResponsesFor(store: StoreFile, checkId: string): StoredResponse[]
   return store.responses.filter((response) => response.checkId === checkId && !response.deletedAt);
 }
 
+function assertOwnerActiveFreeLimit(store: StoreFile, ownerUserId: string, excludingCheckId?: string): void {
+  const activeForOwner = store.checks.filter(
+    (check) =>
+      check.id !== excludingCheckId &&
+      check.ownerUserId === ownerUserId &&
+      check.plan === "free" &&
+      visibleStatus(check) === "active"
+  ).length;
+  if (activeForOwner >= getPlanLimits("free").maxActiveChecks) {
+    throw new StoreError(429, "Free hosts can keep 3 active Comfort Checks at a time.");
+  }
+}
+
 function requireUsableCheck(check: StoredCheck): void {
   if (check.status === "deleted") {
     throw new StoreError(410, "This Comfort Check has been deleted.");
@@ -83,6 +96,13 @@ function requireUsableCheck(check: StoredCheck): void {
 }
 
 type TokenClass = NonNullable<StoreErrorTelemetry["tokenClass"]>;
+type HostAuthMode = "demo_feature_flag" | "supabase_oauth";
+
+interface HostCommandContext {
+  ownerUserId: string;
+  actor: Extract<AuditLog["actor"], "demo_user" | "host">;
+  mode: HostAuthMode;
+}
 
 export function serializeHostCheck(check: StoredCheck): HostVisibleCheck {
   return {
@@ -143,23 +163,19 @@ export function logAbuse(route: string, reason: string, fingerprintHash: string)
   }).catch((error) => console.error("Sayable abuse log failed", error));
 }
 
-export async function createCheck(input: CreateCheckInput, createdByFingerprintHash?: string, ownerUserId?: string): Promise<{
+export async function createCheck(
+  input: CreateCheckInput,
+  createdByFingerprintHash?: string,
+  hostContext?: HostCommandContext
+): Promise<{
   check: StoredCheck;
   guestToken: string;
   hostToken: string;
 }> {
   return mutateStore((store) => {
     const freeActiveLimit = getPlanLimits("free").maxActiveChecks;
-    if (ownerUserId) {
-      const activeForOwner = store.checks.filter(
-        (check) =>
-          check.ownerUserId === ownerUserId &&
-          check.plan === "free" &&
-          visibleStatus(check) === "active"
-      ).length;
-      if (activeForOwner >= freeActiveLimit) {
-        throw new StoreError(429, "Free hosts can keep 3 active Comfort Checks at a time.");
-      }
+    if (hostContext) {
+      assertOwnerActiveFreeLimit(store, hostContext.ownerUserId);
     }
     if (createdByFingerprintHash) {
       const activeForFingerprint = store.checks.filter(
@@ -191,7 +207,7 @@ export async function createCheck(input: CreateCheckInput, createdByFingerprintH
       guestTokenHash: hashToken(guestToken),
       hostTokenHash: hashToken(hostToken),
       resultTokenHash: hashToken(randomToken()),
-      ...(ownerUserId ? { ownerUserId } : {}),
+      ...(hostContext ? { ownerUserId: hostContext.ownerUserId } : {}),
       ...(createdByFingerprintHash ? { createdByFingerprintHash } : {})
     };
     store.checks.push(check);
@@ -207,8 +223,8 @@ export async function createCheck(input: CreateCheckInput, createdByFingerprintH
       action: "check_created",
       checkId: check.id,
       createdAt,
-      actor: "anonymous",
-      detail: "Token-created check created without account."
+      actor: hostContext?.actor || "anonymous",
+      detail: hostContext ? "Signed host created a Comfort Check." : "Token-created check created without account."
     });
     return { check, guestToken, hostToken };
   });
@@ -633,6 +649,9 @@ export function claimCheck(
     if (check.ownerUserId && check.ownerUserId !== ownerUserId) {
       throw new StoreError(403, "This Comfort Check is already saved to another account.");
     }
+    if (check.plan === "free" && visibleStatus(check) === "active") {
+      assertOwnerActiveFreeLimit(store, ownerUserId, check.id);
+    }
     check.ownerUserId = ownerUserId;
     check.updatedAt = now();
     store.analyticsEvents.push({
@@ -663,7 +682,10 @@ export async function listChecksForOwner(ownerUserId: string): Promise<StoredChe
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-export function deleteOwnerAccount(ownerUserId: string): Promise<{ deletedChecks: number }> {
+export function deleteOwnerAccount(
+  ownerUserId: string,
+  actor: Extract<AuditLog["actor"], "demo_user" | "host"> = "host"
+): Promise<{ deletedChecks: number }> {
   return mutateStore((store) => {
     const deletedAt = now();
     let deletedChecks = 0;
@@ -676,7 +698,7 @@ export function deleteOwnerAccount(ownerUserId: string): Promise<{ deletedChecks
         action: "account_check_deleted",
         checkId: check.id,
         createdAt: deletedAt,
-        actor: "demo_user",
+        actor,
         detail: "Signed host account deletion deleted an owned Comfort Check."
       });
       deletedChecks += 1;
@@ -685,10 +707,47 @@ export function deleteOwnerAccount(ownerUserId: string): Promise<{ deletedChecks
       id: crypto.randomUUID(),
       action: "account_deleted",
       createdAt: deletedAt,
-      actor: "demo_user",
+      actor,
       detail: "Signed host requested account deletion; owned Comfort Checks were deleted."
     });
     return { deletedChecks };
+  });
+}
+
+function applyPremiumEntitlements(check: StoredCheck, completedAt: string): void {
+  check.plan = "premium";
+  if (check.themeId === "sayable_default") {
+    check.themeId = defaultThemeForActivity(check.activityType);
+  }
+  check.expiresAt = addDays(new Date(), getPlanLimits("premium").retentionDays);
+  check.updatedAt = completedAt;
+}
+
+function recordPremiumCheckoutEvent(
+  store: StoreFile,
+  check: StoredCheck,
+  status: Exclude<PurchaseRecord["status"], "started">,
+  mode: PurchaseRecord["mode"],
+  actor: AuditLog["actor"],
+  createdAt: string
+): void {
+  store.analyticsEvents.push({
+    id: crypto.randomUUID(),
+    name: `premium_mock_checkout_${status}`,
+    checkId: check.id,
+    createdAt,
+    context: { mode, product_type: "premium_check_upgrade" }
+  });
+  store.auditLogs.push({
+    id: crypto.randomUUID(),
+    action: `premium_${mode}_checkout_${status}`,
+    checkId: check.id,
+    createdAt,
+    actor,
+    detail:
+      status === "completed"
+        ? `Premium Check ${mode} checkout completed.`
+        : `Premium Check ${mode} checkout ${status}.`
   });
 }
 
@@ -697,7 +756,8 @@ export function upgradeCheck(
   outcome: "success" | "failed" | "cancelled" = "success",
   ownerUserId?: string,
   mode: "mock" | "test" = "mock",
-  stripeIds: { checkoutSessionId?: string; paymentIntentId?: string } = {}
+  stripeIds: { checkoutSessionId?: string; paymentIntentId?: string } = {},
+  actor: Extract<AuditLog["actor"], "demo_user" | "host"> = "host"
 ): Promise<PurchaseRecord> {
   return mutateStore((store) => {
     const check = requireCheckByToken(store, hostToken, "hostTokenHash", "host", "Host link not found.");
@@ -709,33 +769,20 @@ export function upgradeCheck(
     }
     requireUsableCheck(check);
     if (outcome !== "success") {
+      const failedStatus: "failed" | "cancelled" = outcome === "failed" ? "failed" : "cancelled";
       const failed: PurchaseRecord = {
         id: crypto.randomUUID(),
         checkId: check.id,
         productType: "premium_check_upgrade",
         amountCents: 499,
         mode,
-        status: outcome === "failed" ? "failed" : "cancelled",
+        status: failedStatus,
         createdAt: now(),
         ...(stripeIds.checkoutSessionId ? { stripeCheckoutSessionId: stripeIds.checkoutSessionId } : {}),
         ...(stripeIds.paymentIntentId ? { stripePaymentIntentId: stripeIds.paymentIntentId } : {})
       };
       store.purchases.push(failed);
-      store.analyticsEvents.push({
-        id: crypto.randomUUID(),
-        name: `premium_mock_checkout_${failed.status}`,
-        checkId: check.id,
-        createdAt: failed.createdAt,
-        context: {}
-      });
-      store.auditLogs.push({
-        id: crypto.randomUUID(),
-        action: `premium_mock_checkout_${failed.status}`,
-        checkId: check.id,
-        createdAt: failed.createdAt,
-        actor: "demo_user",
-        detail: `Premium mock checkout ${failed.status}.`
-      });
+      recordPremiumCheckoutEvent(store, check, failedStatus, mode, actor, failed.createdAt);
       return failed;
     }
     if (check.plan === "premium") {
@@ -752,28 +799,9 @@ export function upgradeCheck(
       ...(stripeIds.checkoutSessionId ? { stripeCheckoutSessionId: stripeIds.checkoutSessionId } : {}),
       ...(stripeIds.paymentIntentId ? { stripePaymentIntentId: stripeIds.paymentIntentId } : {})
     };
-    check.plan = "premium";
-    if (check.themeId === "sayable_default") {
-      check.themeId = defaultThemeForActivity(check.activityType);
-    }
-    check.expiresAt = addDays(new Date(), getPlanLimits("premium").retentionDays);
-    check.updatedAt = purchase.createdAt;
+    applyPremiumEntitlements(check, purchase.createdAt);
     store.purchases.push(purchase);
-    store.analyticsEvents.push({
-      id: crypto.randomUUID(),
-      name: "premium_mock_checkout_completed",
-      checkId: check.id,
-      createdAt: purchase.createdAt,
-      context: { product_type: "premium_check_upgrade" }
-    });
-    store.auditLogs.push({
-      id: crypto.randomUUID(),
-      action: "premium_mock_checkout_completed",
-      checkId: check.id,
-      createdAt: purchase.createdAt,
-      actor: "demo_user",
-      detail: "Premium Check mock upgrade completed for signed owner."
-    });
+    recordPremiumCheckoutEvent(store, check, "completed", mode, actor, purchase.createdAt);
     return purchase;
   });
 }
@@ -781,7 +809,8 @@ export function upgradeCheck(
 export function startPremiumCheckout(
   hostToken: string,
   ownerUserId: string,
-  checkoutSessionId: string
+  checkoutSessionId: string,
+  actor: Extract<AuditLog["actor"], "demo_user" | "host"> = "host"
 ): Promise<PurchaseRecord> {
   return mutateStore((store) => {
     const check = requireCheckByToken(store, hostToken, "hostTokenHash", "host", "Host link not found.");
@@ -819,7 +848,7 @@ export function startPremiumCheckout(
       action: "premium_test_checkout_started",
       checkId: check.id,
       createdAt: startedAt,
-      actor: "host",
+      actor,
       detail: "Stripe test checkout session created for Premium Check."
     });
     return purchase;
@@ -831,9 +860,7 @@ export function completePremiumCheckoutBySession(
   paymentIntentId?: string
 ): Promise<PurchaseRecord> {
   return mutateStore((store) => {
-    const purchase = store.purchases.find(
-      (candidate) => candidate.stripeCheckoutSessionId === checkoutSessionId && candidate.status === "started"
-    );
+    const purchase = store.purchases.find((candidate) => candidate.stripeCheckoutSessionId === checkoutSessionId);
     if (!purchase) {
       throw new StoreError(404, "Premium checkout session was not found.");
     }
@@ -841,33 +868,17 @@ export function completePremiumCheckoutBySession(
     if (!check) {
       throw new StoreError(404, "Comfort Check not found.");
     }
+    if (purchase.status === "completed") {
+      return purchase;
+    }
     requireUsableCheck(check);
     const completedAt = now();
     purchase.status = "completed";
     if (paymentIntentId) {
       purchase.stripePaymentIntentId = paymentIntentId;
     }
-    check.plan = "premium";
-    if (check.themeId === "sayable_default") {
-      check.themeId = defaultThemeForActivity(check.activityType);
-    }
-    check.expiresAt = addDays(new Date(), getPlanLimits("premium").retentionDays);
-    check.updatedAt = completedAt;
-    store.analyticsEvents.push({
-      id: crypto.randomUUID(),
-      name: "premium_mock_checkout_completed",
-      checkId: check.id,
-      createdAt: completedAt,
-      context: { mode: "test", product_type: "premium_check_upgrade" }
-    });
-    store.auditLogs.push({
-      id: crypto.randomUUID(),
-      action: "premium_test_checkout_completed",
-      checkId: check.id,
-      createdAt: completedAt,
-      actor: "system",
-      detail: "Verified Stripe test checkout completed Premium Check upgrade."
-    });
+    applyPremiumEntitlements(check, completedAt);
+    recordPremiumCheckoutEvent(store, check, "completed", "test", "system", completedAt);
     return purchase;
   });
 }
