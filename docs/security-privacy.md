@@ -35,7 +35,7 @@ API routes use per-route in-memory rate limits for local MVP smoke and log abuse
 
 Local MVP store mutations are serialized in-process so rapid same-instance submits cannot overwrite accepted responses. Supabase mode also takes a Postgres-backed runtime lock around the whole-store mutation path. Production should still move hot paths to row-level transactional inserts/updates for better scale and simpler failure recovery.
 
-Sensitive local-store actions audit log check creation, response submit/delete, check claim, Premium mock checkout outcomes, and admin close/delete actions.
+Sensitive local-store actions audit log check creation, response submit/delete, check claim, Premium mock/test checkout outcomes, and admin close/delete actions. Stripe test-mode Checkout URLs do not include host bearer tokens; webhook completion is tied back through Stripe session metadata and a signed-host return check.
 
 ## Secrets
 

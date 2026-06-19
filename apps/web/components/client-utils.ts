@@ -103,6 +103,20 @@ export async function getHostSession(): Promise<HostSession> {
   return getDemoSession();
 }
 
+export async function getExistingHostSession(): Promise<HostSession | null> {
+  if (!isGoogleOAuthEnabled()) {
+    return getStoredDemoSession();
+  }
+  const client = getBrowserAuthClient();
+  if (!client) {
+    return null;
+  }
+  const { data } = await client.auth.getSession();
+  const token = data.session?.access_token;
+  const ownerUserId = data.session?.user.id;
+  return token && ownerUserId ? { token, ownerUserId } : null;
+}
+
 export async function authHeaders(): Promise<Record<string, string>> {
   const session = await getHostSession();
   return {
@@ -110,11 +124,8 @@ export async function authHeaders(): Promise<Record<string, string>> {
   };
 }
 
-export function existingAuthHeaders(): Record<string, string> {
-  if (isGoogleOAuthEnabled()) {
-    return {};
-  }
-  const session = getStoredDemoSession();
+export async function existingAuthHeaders(): Promise<Record<string, string>> {
+  const session = await getExistingHostSession();
   if (!session?.token) {
     return {};
   }

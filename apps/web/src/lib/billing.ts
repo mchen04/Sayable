@@ -1,7 +1,13 @@
 import "server-only";
 
 import crypto from "node:crypto";
-import { completePremiumCheckoutBySession, publicBaseUrl, startPremiumCheckout, upgradeCheck } from "./store";
+import {
+  completePremiumCheckoutBySession,
+  preflightPremiumCheckout,
+  publicBaseUrl,
+  startPremiumCheckout,
+  upgradeCheck
+} from "./store";
 import { StoreError } from "./store-types";
 
 interface StripeCheckoutSession {
@@ -15,6 +21,10 @@ interface StripeCheckoutCompletedEvent {
     object: {
       id: string;
       payment_intent?: string | null;
+      metadata?: {
+        check_id?: string;
+        owner_user_id?: string;
+      };
     };
   };
 }
@@ -66,14 +76,20 @@ function verifyStripeSignature(payload: string, signatureHeader: string | null):
   }
 }
 
-async function createStripeCheckoutSession(hostToken: string, checkId: string, checkTitle: string): Promise<StripeCheckoutSession> {
+async function createStripeCheckoutSession(
+  ownerUserId: string,
+  checkId: string,
+  checkTitle: string
+): Promise<StripeCheckoutSession> {
   const { secretKey } = requireStripeTestConfig();
   const baseUrl = publicBaseUrl();
   const body = new URLSearchParams({
     mode: "payment",
-    success_url: `${baseUrl}/checks/${hostToken}/review?premium=success`,
-    cancel_url: `${baseUrl}/checks/${hostToken}/review?premium=cancelled`,
+    success_url: `${baseUrl}/billing/return?session_id={CHECKOUT_SESSION_ID}&status=success`,
+    cancel_url: `${baseUrl}/billing/return?session_id={CHECKOUT_SESSION_ID}&status=cancelled`,
     client_reference_id: checkId,
+    "metadata[check_id]": checkId,
+    "metadata[owner_user_id]": ownerUserId,
     "line_items[0][quantity]": "1",
     "line_items[0][price_data][currency]": "usd",
     "line_items[0][price_data][unit_amount]": "499",
@@ -99,9 +115,7 @@ export async function createPremiumCheckout(
   hostToken: string,
   ownerUserId: string,
   actor: "demo_user" | "host",
-  outcome: "success" | "failed" | "cancelled" = "success",
-  checkId = "comfort-check",
-  checkTitle = "Comfort Check"
+  outcome: "success" | "failed" | "cancelled" = "success"
 ): Promise<PremiumCheckoutResult> {
   if (stripeMode() === "mock") {
     return {
@@ -111,17 +125,25 @@ export async function createPremiumCheckout(
   if (outcome !== "success") {
     throw new StoreError(400, "Checkout outcome simulation is only available in mock mode.");
   }
-  const session = await createStripeCheckoutSession(hostToken, checkId, checkTitle);
+  const check = await preflightPremiumCheckout(hostToken, ownerUserId);
+  const session = await createStripeCheckoutSession(ownerUserId, check.id, check.title);
   const purchase = await startPremiumCheckout(hostToken, ownerUserId, session.id, actor);
   return session.url ? { purchase, checkoutUrl: session.url } : { purchase };
 }
 
 export async function handleBillingWebhook(payload: string, signatureHeader: string | null): Promise<void> {
   verifyStripeSignature(payload, signatureHeader);
-  const event = JSON.parse(payload) as { type?: string; data?: { object?: { id?: string; payment_intent?: string | null } } };
+  const event = JSON.parse(payload) as {
+    type?: string;
+    data?: { object?: { id?: string; payment_intent?: string | null; metadata?: Record<string, string | undefined> } };
+  };
   if (event.type !== "checkout.session.completed") {
     return;
   }
   const completed = event as StripeCheckoutCompletedEvent;
-  await completePremiumCheckoutBySession(completed.data.object.id, completed.data.object.payment_intent || undefined);
+  const metadata = completed.data.object.metadata;
+  await completePremiumCheckoutBySession(completed.data.object.id, completed.data.object.payment_intent || undefined, {
+    ...(metadata?.check_id ? { checkId: metadata.check_id } : {}),
+    ...(metadata?.owner_user_id ? { ownerUserId: metadata.owner_user_id } : {})
+  });
 }

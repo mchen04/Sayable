@@ -77,7 +77,6 @@ export interface ParsedPrice {
 }
 
 export interface GuestResponse {
-  responseTokenHash?: string | undefined;
   status: ResponseStatus;
   tierId: string;
   constraintIds: string[];

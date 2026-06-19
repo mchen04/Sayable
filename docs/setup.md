@@ -76,3 +76,4 @@ Future test mode:
 4. Use Stripe CLI: `stripe listen --forward-to localhost:3000/api/billing/webhook`.
 5. Use test card `4242 4242 4242 4242`, future expiry, any CVC, valid ZIP.
 6. Premium unlocks only after a verified `checkout.session.completed` webhook; client-side outcome simulation is accepted only in `STRIPE_MODE=mock`.
+7. Checkout success/cancel redirects go to `/billing/return` with Stripe's session id, not a host token. The return API verifies the signed host session before the browser reopens a locally remembered host review link.

@@ -1,5 +1,5 @@
 import { getTheme } from "@sayable/core";
-import { getPublicCheck, getSnapshot } from "@/src/lib/store";
+import { getPreviewByToken } from "@/src/lib/store";
 
 type RouteContext = { params: Promise<{ token: string }> };
 
@@ -94,38 +94,36 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
   if (token !== "default") {
     try {
-      const { check } = await getPublicCheck(token);
-      const theme = getTheme(check.themeId);
-      const isActive = check.status === "active";
-      payload = {
-        title: isActive ? check.title : "Comfort Check unavailable",
-        eyebrow: `${check.draft.activityLabel} Comfort Check${isActive ? "" : " unavailable"}`,
-        detail:
-          isActive
-            ? "Private answers, group-safe result."
-            : "This Sayable guest link is no longer accepting responses.",
-        ...theme,
-        ...(check.customTheme ? { accent: check.customTheme.accent } : {})
-      };
-    } catch {
-      try {
-        const { check, result } = await getSnapshot(token);
-        const theme = getTheme(check.themeId);
+      const preview = await getPreviewByToken(token);
+      const theme = getTheme(preview.check.themeId);
+      if (preview.kind === "result") {
         payload = {
-          title: check.title,
-          eyebrow: `${check.draft.activityLabel} Comfort Check result`,
-          detail: result.publicSnapshot.detail,
+          title: preview.check.title,
+          eyebrow: `${preview.check.draft.activityLabel} Comfort Check result`,
+          detail: preview.result.publicSnapshot.detail,
           ...theme,
-          ...(check.customTheme ? { accent: check.customTheme.accent } : {})
+          ...(preview.check.customTheme ? { accent: preview.check.customTheme.accent } : {})
         };
-      } catch {
+      } else {
+        const isActive = preview.check.status === "active";
         payload = {
-          title: "Comfort Check unavailable",
-          eyebrow: "Sayable",
-          detail: "This link is expired, deleted, or no longer public.",
-          ...getTheme("sayable_default")
+          title: isActive ? preview.check.title : "Comfort Check unavailable",
+          eyebrow: `${preview.check.draft.activityLabel} Comfort Check${isActive ? "" : " unavailable"}`,
+          detail:
+            isActive
+              ? "Private answers, group-safe result."
+              : "This Sayable guest link is no longer accepting responses.",
+          ...theme,
+          ...(preview.check.customTheme ? { accent: preview.check.customTheme.accent } : {})
         };
       }
+    } catch {
+      payload = {
+        title: "Comfort Check unavailable",
+        eyebrow: "Sayable",
+        detail: "This link is expired, deleted, or no longer public.",
+        ...getTheme("sayable_default")
+      };
     }
   }
 

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ACTIVITY_TYPES, VIBES, activityLabel, type ActivityType, type Vibe } from "@sayable/core";
 import { ArrowRight, ClipboardList, MessageCircle } from "lucide-react";
-import { existingAuthHeaders, getDemoSession } from "./client-utils";
+import { existingAuthHeaders, getHostSession } from "./client-utils";
 
 const vibeLabels: Record<Vibe, string> = {
   low_key: "Low-key",
@@ -47,22 +47,23 @@ export default function CreateCheckForm({ compact = false }: { compact?: boolean
     return created;
   }
 
-  async function submit(forceDemoSession = false) {
+  async function submit(forceHostSession = false) {
     setIsLoading(true);
     setError("");
     try {
-      if (forceDemoSession) {
-        await getDemoSession();
+      if (forceHostSession) {
+        await getHostSession();
       }
+      const headers = await existingAuthHeaders();
       const response = await fetch("/api/checks", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...existingAuthHeaders() },
+        headers: { "Content-Type": "application/json", ...headers },
         body: JSON.stringify({
           title,
           activityType,
           currentIdea: currentIdea || undefined,
           vibe: vibe || undefined,
-          ...(!existingAuthHeaders().Authorization ? { creatorNonce: getCreatorNonce() } : {})
+          ...(!headers.Authorization ? { creatorNonce: getCreatorNonce() } : {})
         })
       });
       const data = (await response.json()) as { hostToken?: string; check?: { id: string }; error?: string };

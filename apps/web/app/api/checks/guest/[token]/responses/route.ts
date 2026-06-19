@@ -10,10 +10,10 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
     enforceRateLimit(request, "guest_response_submit", { limit: 20, windowMs: 60_000 });
     const input = await parseJson(request, responseSchema);
     const { token } = await params;
-    const { response } = await submitResponse(token, input, input.clientNonce ? hashToken(input.clientNonce) : undefined);
+    const { response, responseToken } = await submitResponse(token, input, input.clientNonce ? hashToken(input.clientNonce) : undefined);
     return json(
       {
-        responseToken: response.responseTokenHash,
+        responseToken,
         status: response.status,
         tierId: response.tierId,
         constraintIds: response.constraintIds

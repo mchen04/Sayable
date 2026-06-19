@@ -32,6 +32,63 @@ const env = {
   STRIPE_MODE: "mock"
 };
 
+function staticAssert(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+function sourceFile(relativePath) {
+  return readFileSync(path.join(process.cwd(), relativePath), "utf8");
+}
+
+function runStaticContractChecks() {
+  const migration = sourceFile("supabase/migrations/0001_sayable_mvp.sql");
+  staticAssert(
+    migration.includes(
+      "grant execute on function public.replace_sayable_runtime_store(jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb) to service_role"
+    ),
+    "Supabase runtime replacement RPC must grant execute to service_role"
+  );
+  staticAssert(
+    migration.includes(
+      "revoke all on function public.replace_sayable_runtime_store(jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb) from public, anon, authenticated"
+    ),
+    "Supabase runtime replacement RPC must stay revoked from public/anon/authenticated"
+  );
+
+  const billing = sourceFile("apps/web/src/lib/billing.ts");
+  staticAssert(!billing.includes("/checks/${hostToken}/review?premium="), "Stripe URLs must not contain raw host tokens");
+  staticAssert(
+    billing.includes("/billing/return?session_id={CHECKOUT_SESSION_ID}") &&
+      billing.includes("\"metadata[check_id]\"") &&
+      billing.includes("\"metadata[owner_user_id]\""),
+    "Stripe test checkout must use a tokenless return route plus metadata"
+  );
+
+  const createForm = sourceFile("apps/web/components/CreateCheckForm.tsx");
+  staticAssert(!createForm.includes("getDemoSession"), "Create recovery must use canonical host auth, not demo-only auth");
+  staticAssert(createForm.includes("await existingAuthHeaders()"), "Create must attach an existing host auth session");
+
+  const coreTypes = sourceFile("packages/core/src/types.ts");
+  staticAssert(!/interface GuestResponse[\s\S]*responseTokenHash/.test(coreTypes), "Core GuestResponse must not carry token hashes");
+  const store = sourceFile("apps/web/src/lib/store.ts");
+  staticAssert(!store.includes("response: { ...response, responseTokenHash: token }"), "submitResponse must return raw tokens explicitly");
+  staticAssert(store.includes("responseToken: token"), "submitResponse must return an explicit responseToken");
+
+  const ogRoute = sourceFile("apps/web/app/api/og/check/[token]/route.ts");
+  staticAssert(
+    ogRoute.includes("getPreviewByToken") && !ogRoute.includes("getPublicCheck") && !ogRoute.includes("getSnapshot"),
+    "OG preview must not use token-validation failures as normal control flow"
+  );
+
+  const nativeHome = sourceFile("apps/mobile/app/index.tsx");
+  staticAssert(nativeHome.includes("creatorNonce"), "Native anonymous create must include a persisted creator nonce");
+  staticAssert(!nativeHome.includes("Share.share"), "Native create must open review before sharing a guest link");
+}
+
+runStaticContractChecks();
+
 const server = spawn("npm", ["run", "dev", "-w", "@sayable/web", "--", "--hostname", "127.0.0.1", "--port", String(port)], {
   cwd: process.cwd(),
   env,

@@ -393,6 +393,7 @@ end;
 $$;
 
 revoke all on function public.replace_sayable_runtime_store(jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb) from public, anon, authenticated;
+grant execute on function public.replace_sayable_runtime_store(jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb) to service_role;
 
 create policy "profiles owner can read"
 on public.profiles for select

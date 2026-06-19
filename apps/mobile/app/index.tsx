@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Linking, Pressable, ScrollView, Share, Text, TextInput, View } from "react-native";
+import { Alert, Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { ACTIVITY_TYPES, activityLabel, createComfortDraft, getTheme, type ActivityType } from "@sayable/core";
 import { styles } from "@/src/styles";
@@ -13,6 +13,16 @@ function postAnalytics(name: string, context: Record<string, string | number | b
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, context })
   }).catch(() => undefined);
+}
+
+async function getCreatorNonce(): Promise<string> {
+  const existing = await SecureStore.getItemAsync("creator_nonce");
+  if (existing) {
+    return existing;
+  }
+  const created = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+  await SecureStore.setItemAsync("creator_nonce", created);
+  return created;
 }
 
 export default function HostHome() {
@@ -37,7 +47,12 @@ export default function HostHome() {
       const response = await fetch(`${WEB_BASE_URL}/api/checks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, activityType, currentIdea: currentIdea || undefined })
+        body: JSON.stringify({
+          title,
+          activityType,
+          currentIdea: currentIdea || undefined,
+          creatorNonce: await getCreatorNonce()
+        })
       });
       const payload = (await response.json()) as {
         hostToken?: string;
@@ -49,11 +64,7 @@ export default function HostHome() {
         throw new Error(payload.error || "Could not create this Comfort Check.");
       }
       await SecureStore.setItemAsync("last_host_token", payload.hostToken);
-      postAnalytics("share_sheet_opened", { surface: "native_host_home" });
-      await Share.share({
-        title: "Sayable Comfort Check",
-        message: `${draft.shareText} ${payload.guestUrl}`
-      });
+      postAnalytics("host_review_opened", { surface: "native_host_home" });
       await Linking.openURL(payload.hostUrl || `${WEB_BASE_URL}/checks/${payload.hostToken}/review`);
     } catch (caught) {
       postAnalytics("error_shown", { surface: "native_create" });
