@@ -1,7 +1,17 @@
 import { type NextRequest } from "next/server";
 import { requireHostSession } from "@/src/lib/host-auth";
-import { getPremiumCheckoutReturn } from "@/src/lib/store";
+import { resolvePremiumCheckoutReturn, StoreError, type PremiumCheckoutReturnStatus } from "@/src/lib/store";
 import { enforceRateLimit, handleApiError, json } from "@/src/lib/http";
+
+function parseReturnStatus(status: string | null): PremiumCheckoutReturnStatus | undefined {
+  if (!status) {
+    return undefined;
+  }
+  if (status === "success" || status === "cancelled") {
+    return status;
+  }
+  throw new StoreError(400, "Checkout return status is invalid.");
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,7 +21,12 @@ export async function GET(request: NextRequest) {
       return json({ error: "Checkout session is missing." }, 400);
     }
     const session = await requireHostSession(request);
-    const result = await getPremiumCheckoutReturn(sessionId, session.sub);
+    const result = await resolvePremiumCheckoutReturn(
+      sessionId,
+      session.sub,
+      parseReturnStatus(request.nextUrl.searchParams.get("status")),
+      session.actor
+    );
     return json(result);
   } catch (error) {
     return handleApiError(error, request);

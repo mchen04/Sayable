@@ -562,6 +562,43 @@ async function main() {
     "premium upgrade should preserve custom constraints"
   );
 
+  const cancelledReturnCheck = await createCheck("tickets_event", 43);
+  const cancelledReturnSession = await demoSession();
+  const cancelledReturnClaim = await request(`/api/checks/host/${cancelledReturnCheck.hostToken}/claim`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${cancelledReturnSession.token}` }
+  });
+  assert(cancelledReturnClaim.response.ok, "cancelled return claim failed");
+  const cancelledSessionId = `cs_test_cancel_${crypto.randomUUID()}`;
+  const storeBeforeCancelReturn = JSON.parse(readFileSync(storePath, "utf8"));
+  storeBeforeCancelReturn.purchases.push({
+    id: crypto.randomUUID(),
+    checkId: cancelledReturnClaim.body.check.id,
+    productType: "premium_check_upgrade",
+    amountCents: 499,
+    mode: "test",
+    status: "started",
+    stripeCheckoutSessionId: cancelledSessionId,
+    createdAt: new Date().toISOString()
+  });
+  writeFileSync(storePath, `${JSON.stringify(storeBeforeCancelReturn, null, 2)}\n`);
+  const cancelledReturn = await request(`/api/billing/return?session_id=${cancelledSessionId}&status=cancelled`, {
+    headers: { Authorization: `Bearer ${cancelledReturnSession.token}` }
+  });
+  assert(cancelledReturn.response.ok, "cancelled billing return failed");
+  assert(cancelledReturn.body.status === "cancelled", "cancelled billing return should persist cancellation");
+  const storeAfterCancelReturn = JSON.parse(readFileSync(storePath, "utf8"));
+  const cancelledPurchase = storeAfterCancelReturn.purchases.find(
+    (purchase) => purchase.stripeCheckoutSessionId === cancelledSessionId
+  );
+  assert(cancelledPurchase?.status === "cancelled", "cancelled return should clear started checkout state");
+  assert(
+    !storeAfterCancelReturn.purchases.some(
+      (purchase) => purchase.checkId === cancelledReturnClaim.body.check.id && purchase.status === "started"
+    ),
+    "cancelled return should leave no active checkout for the check"
+  );
+
   const queryOnlyDashboard = await request(`/api/dashboard?ownerUserId=demo_smoke_user`);
   assert(queryOnlyDashboard.response.status === 401, "dashboard should reject query-only owner access");
 

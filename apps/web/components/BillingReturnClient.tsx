@@ -12,7 +12,15 @@ interface CheckoutReturn {
   plan: "free" | "premium";
 }
 
-export default function BillingReturnClient({ sessionId }: { sessionId: string }) {
+type CheckoutReturnStatus = "success" | "cancelled";
+
+export default function BillingReturnClient({
+  sessionId,
+  returnStatus
+}: {
+  sessionId: string;
+  returnStatus?: CheckoutReturnStatus;
+}) {
   const router = useRouter();
   const [message, setMessage] = useState("Confirming Premium checkout...");
   const [error, setError] = useState("");
@@ -28,7 +36,11 @@ export default function BillingReturnClient({ sessionId }: { sessionId: string }
         return;
       }
       try {
-        const response = await fetch(`/api/billing/return?session_id=${encodeURIComponent(sessionId)}`, {
+        const params = new URLSearchParams({ session_id: sessionId });
+        if (returnStatus) {
+          params.set("status", returnStatus);
+        }
+        const response = await fetch(`/api/billing/return?${params}`, {
           headers: await authHeaders(),
           cache: "no-store"
         });
@@ -69,7 +81,7 @@ export default function BillingReturnClient({ sessionId }: { sessionId: string }
         window.clearTimeout(retryTimer);
       }
     };
-  }, [router, sessionId]);
+  }, [returnStatus, router, sessionId]);
 
   return (
     <main className="page-shell narrow">

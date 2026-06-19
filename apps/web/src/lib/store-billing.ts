@@ -7,9 +7,15 @@ import { requireCheckById, requireCheckByToken, requireOwnerCheck, requireUsable
 import { type AuditLog, type PurchaseRecord, type StoreFile, type StoredCheck, StoreError } from "./store-types";
 
 export type PremiumCheckoutOutcome = "success" | "failed" | "cancelled";
+export type PremiumCheckoutReturnStatus = "success" | "cancelled";
 export type PremiumCheckoutTarget =
   | { type: "hostToken"; hostToken: string; ownerUserId: string }
   | { type: "checkId"; checkId: string; ownerUserId: string };
+type PremiumCheckoutReturn = {
+  checkId: string;
+  status: PurchaseRecord["status"];
+  plan: StoredCheck["plan"];
+};
 
 type CheckoutActor = Extract<AuditLog["actor"], "demo_user" | "host" | "system">;
 type CheckoutMode = PurchaseRecord["mode"];
@@ -100,6 +106,37 @@ function startedCheckoutForCheck(store: StoreFile, checkId: string): PurchaseRec
   );
 }
 
+function checkoutForSession(store: StoreFile, checkoutSessionId: string): PurchaseRecord | undefined {
+  return (
+    store.purchases.find(
+      (purchase) => purchase.stripeCheckoutSessionId === checkoutSessionId && purchase.status === "started"
+    ) || store.purchases.find((purchase) => purchase.stripeCheckoutSessionId === checkoutSessionId)
+  );
+}
+
+function recordStartedCheckoutEvent(
+  store: StoreFile,
+  check: StoredCheck,
+  actor: CheckoutActor,
+  createdAt: string
+): void {
+  store.analyticsEvents.push({
+    id: crypto.randomUUID(),
+    name: "premium_mock_checkout_started",
+    checkId: check.id,
+    createdAt,
+    context: { mode: "test", product_type: "premium_check_upgrade" }
+  });
+  store.auditLogs.push({
+    id: crypto.randomUUID(),
+    action: "premium_test_checkout_started",
+    checkId: check.id,
+    createdAt,
+    actor,
+    detail: "Stripe test checkout session created for Premium Check."
+  });
+}
+
 function recordUpgradeOutcome(
   store: StoreFile,
   check: StoredCheck,
@@ -147,24 +184,19 @@ function recordStartedCheckout(
     }
     throw new StoreError(409, "Premium checkout is already in progress for this Comfort Check.");
   }
+  const reusable = checkoutForSession(store, checkoutSessionId);
+  if (reusable?.checkId === check.id && reusable.mode === "test" && reusable.status !== "completed") {
+    const restartedAt = now();
+    reusable.status = "started";
+    reusable.createdAt = restartedAt;
+    delete reusable.stripePaymentIntentId;
+    recordStartedCheckoutEvent(store, check, actor, restartedAt);
+    return reusable;
+  }
   const startedAt = now();
   const purchase = createStartedPurchase(check, checkoutSessionId, startedAt);
   store.purchases.push(purchase);
-  store.analyticsEvents.push({
-    id: crypto.randomUUID(),
-    name: "premium_mock_checkout_started",
-    checkId: check.id,
-    createdAt: startedAt,
-    context: { mode: "test", product_type: "premium_check_upgrade" }
-  });
-  store.auditLogs.push({
-    id: crypto.randomUUID(),
-    action: "premium_test_checkout_started",
-    checkId: check.id,
-    createdAt: startedAt,
-    actor,
-    detail: "Stripe test checkout session created for Premium Check."
-  });
+  recordStartedCheckoutEvent(store, check, actor, startedAt);
   return purchase;
 }
 
@@ -203,7 +235,7 @@ export function completePremiumCheckoutBySession(
   metadata: { checkId?: string; ownerUserId?: string } = {}
 ): Promise<PurchaseRecord> {
   return mutateStore((store) => {
-    let purchase = store.purchases.find((candidate) => candidate.stripeCheckoutSessionId === checkoutSessionId);
+    let purchase = checkoutForSession(store, checkoutSessionId);
     let check: StoredCheck | undefined;
     if (purchase) {
       check = store.checks.find((candidate) => candidate.id === purchase!.checkId);
@@ -261,16 +293,12 @@ export function completePremiumCheckoutBySession(
   });
 }
 
-export async function getPremiumCheckoutReturn(
+function requireCheckoutReturn(
+  store: StoreFile,
   checkoutSessionId: string,
   ownerUserId: string
-): Promise<{
-  checkId: string;
-  status: PurchaseRecord["status"];
-  plan: StoredCheck["plan"];
-}> {
-  const store = await readStore();
-  const purchase = store.purchases.find((candidate) => candidate.stripeCheckoutSessionId === checkoutSessionId);
+): { purchase: PurchaseRecord; check: StoredCheck } {
+  const purchase = checkoutForSession(store, checkoutSessionId);
   if (!purchase) {
     throw new StoreError(404, "Premium checkout session was not found.");
   }
@@ -278,9 +306,35 @@ export async function getPremiumCheckoutReturn(
   if (check.ownerUserId !== ownerUserId) {
     throw new StoreError(403, "This Premium Check upgrade belongs to a different host account.");
   }
+  return { purchase, check };
+}
+
+function checkoutReturnPayload(purchase: PurchaseRecord, check: StoredCheck): PremiumCheckoutReturn {
   return {
     checkId: check.id,
     status: purchase.status,
     plan: check.plan
   };
+}
+
+export async function resolvePremiumCheckoutReturn(
+  checkoutSessionId: string,
+  ownerUserId: string,
+  returnStatus?: PremiumCheckoutReturnStatus,
+  actor: CheckoutActor = "host"
+): Promise<PremiumCheckoutReturn> {
+  if (returnStatus === "cancelled") {
+    return mutateStore((store) => {
+      const { purchase, check } = requireCheckoutReturn(store, checkoutSessionId, ownerUserId);
+      if (purchase.mode === "test" && purchase.status === "started") {
+        const cancelledAt = now();
+        purchase.status = "cancelled";
+        recordPremiumCheckoutEvent(store, check, "cancelled", "test", actor, cancelledAt);
+      }
+      return checkoutReturnPayload(purchase, check);
+    });
+  }
+  const store = await readStore();
+  const { purchase, check } = requireCheckoutReturn(store, checkoutSessionId, ownerUserId);
+  return checkoutReturnPayload(purchase, check);
 }

@@ -61,9 +61,31 @@ export function runStaticContractChecks() {
     storeBilling.includes('purchase.status = "cancelled"'),
     "Duplicate Stripe completion webhooks must cancel started duplicate sessions"
   );
+  staticAssert(
+    storeBilling.includes("resolvePremiumCheckoutReturn") &&
+      storeBilling.includes('returnStatus === "cancelled"') &&
+      storeBilling.includes("checkoutForSession"),
+    "Checkout return cancellation must be resolved in the store state machine"
+  );
+  staticAssert(
+    storeBilling.includes('reusable.status = "started"'),
+    "Retrying a cancelled Stripe session must reuse the same purchase row instead of duplicating session ids"
+  );
+
+  const billingReturnRoute = sourceFile("apps/web/app/api/billing/return/route.ts");
+  staticAssert(
+    billingReturnRoute.includes("resolvePremiumCheckoutReturn") &&
+      billingReturnRoute.includes('searchParams.get("status")') &&
+      billingReturnRoute.includes("session.actor"),
+    "Billing return API must pass return status through to the server-side checkout resolver"
+  );
 
   const billingReturn = sourceFile("apps/web/components/BillingReturnClient.tsx");
   staticAssert(!billingReturn.includes("localStorage"), "Checkout return must not recover raw host tokens from browser storage");
+  staticAssert(
+    billingReturn.includes('params.set("status", returnStatus)'),
+    "Checkout return client must pass Stripe return status to the server"
+  );
   staticAssert(
     billingReturn.includes('payload.status === "started"') && billingReturn.includes("window.setTimeout"),
     "Checkout return must wait on server-side started status before redirecting"

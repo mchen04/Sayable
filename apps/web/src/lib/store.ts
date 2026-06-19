@@ -58,12 +58,12 @@ export type {
 };
 export {
   completePremiumCheckoutBySession,
-  getPremiumCheckoutReturn,
   preflightPremiumCheckoutForTarget,
+  resolvePremiumCheckoutReturn,
   startPremiumCheckoutForTarget,
   upgradeCheckForTarget
 } from "./store-billing";
-export type { PremiumCheckoutOutcome, PremiumCheckoutTarget } from "./store-billing";
+export type { PremiumCheckoutOutcome, PremiumCheckoutReturnStatus, PremiumCheckoutTarget } from "./store-billing";
 
 function addDays(date: Date, days: number): string {
   const next = new Date(date);
