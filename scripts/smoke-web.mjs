@@ -85,6 +85,14 @@ function runStaticContractChecks() {
   const nativeHome = sourceFile("apps/mobile/app/index.tsx");
   staticAssert(nativeHome.includes("creatorNonce"), "Native anonymous create must include a persisted creator nonce");
   staticAssert(!nativeHome.includes("Share.share"), "Native create must open review before sharing a guest link");
+
+  const layout = sourceFile("apps/web/app/layout.tsx");
+  const guestPage = sourceFile("apps/web/app/c/[guestToken]/page.tsx");
+  staticAssert(layout.includes('images: ["/api/og/check/default"]'), "Default Twitter metadata must include the OG image");
+  staticAssert(
+    guestPage.includes("images: [`/api/og/check/${guestToken}`]"),
+    "Guest Twitter metadata must include the generated OG image"
+  );
 }
 
 runStaticContractChecks();
@@ -513,6 +521,24 @@ async function main() {
     group: "custom",
     isCustom: true
   };
+  const duplicateConstraintId = await request(`/api/checks/host/${preserveCheck.hostToken}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      constraints: [...preserveHost.body.check.draft.constraints, preserveConstraint, preserveConstraint]
+    })
+  });
+  assert(duplicateConstraintId.response.status === 400, "duplicate custom constraint ids should be rejected");
+  const duplicateConstraintLabel = await request(`/api/checks/host/${preserveCheck.hostToken}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      constraints: [
+        ...preserveHost.body.check.draft.constraints,
+        preserveConstraint,
+        { ...preserveConstraint, id: "custom-preserve-upgrade-copy" }
+      ]
+    })
+  });
+  assert(duplicateConstraintLabel.response.status === 400, "duplicate custom constraint labels should be rejected");
   const preserveEdit = await request(`/api/checks/host/${preserveCheck.hostToken}`, {
     method: "PATCH",
     body: JSON.stringify({

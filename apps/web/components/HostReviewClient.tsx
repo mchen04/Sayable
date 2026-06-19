@@ -51,6 +51,10 @@ function safeId(label: string) {
   return `custom-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 32) || "constraint"}`;
 }
 
+function labelKey(label: string) {
+  return label.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 function rememberDashboardHostToken(checkId: string, hostToken: string) {
   const mapKey = "sayable_host_token_by_check_id";
   const map = JSON.parse(window.localStorage.getItem(mapKey) || "{}") as Record<string, string>;
@@ -329,7 +333,19 @@ export default function HostReviewClient({ hostToken }: { hostToken: string }) {
       setError(`${data.check.plan} checks allow ${limits.maxCustomConstraints} custom constraints.`);
       return;
     }
-    setConstraints((items) => [...items, { id: safeId(label), label, group: "custom", isCustom: true }]);
+    const id = safeId(label);
+    const duplicate = constraints.some(
+      (constraint) =>
+        constraint.id === id ||
+        ((constraint.isCustom || constraint.group === "custom") && labelKey(constraint.label) === labelKey(label))
+    );
+    if (duplicate) {
+      setInvalidFieldId("new-constraint");
+      setMessage("");
+      setError("Custom constraints need unique labels.");
+      return;
+    }
+    setConstraints((items) => [...items, { id, label, group: "custom", isCustom: true }]);
     setNewConstraint("");
   }
 
@@ -423,10 +439,14 @@ export default function HostReviewClient({ hostToken }: { hostToken: string }) {
                   >
                     Delete question
                   </button>
-                ) : null}
-              </div>
-            ))}
-          </details>
+	                ) : null}
+	              </div>
+	            ))}
+	            <button className="btn btn-secondary" type="button" onClick={saveDraftItems} disabled={isSaving}>
+	              <Save size={18} aria-hidden />
+	              Save questions and tiers
+	            </button>
+	          </details>
 
           <details className="tool-panel stack">
             <summary>Fine-tune comfort tiers</summary>

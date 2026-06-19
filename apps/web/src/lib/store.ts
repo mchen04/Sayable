@@ -508,6 +508,10 @@ function uniqueKnownConstraintIds(draft: ComfortDraft, ids: string[]): string[] 
   return Array.from(new Set(ids)).filter((id) => allowed.has(id)).slice(0, 10);
 }
 
+function constraintLabelKey(label: string): string {
+  return label.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 function invalidateResultSnapshots(store: StoreFile, checkId: string, deletedAt: string): void {
   for (const snapshot of store.resultSnapshots.filter((candidate) => candidate.checkId === checkId && !candidate.deletedAt)) {
     snapshot.deletedAt = deletedAt;
@@ -568,11 +572,27 @@ export function updateHostCheck(
     if (patch.constraints) {
       const maxCustom = getPlanLimits(check.plan).maxCustomConstraints;
       const existing = new Map(check.draft.constraints.map((constraint) => [constraint.id, constraint]));
+      const seenIds = new Set<string>();
+      const seenCustomLabels = new Set<string>();
       const normalized = patch.constraints.map((constraint) => {
         const previous = existing.get(constraint.id);
         const label = constraint.label.trim().slice(0, 100);
         if (!label) {
           throw new StoreError(400, "Constraint labels cannot be empty.");
+        }
+        if (seenIds.has(constraint.id)) {
+          throw new StoreError(400, "Constraint ids must be unique.");
+        }
+        seenIds.add(constraint.id);
+        const isCustom = Boolean(
+          previous?.isCustom || previous?.group === "custom" || constraint.isCustom || constraint.group === "custom"
+        );
+        if (isCustom) {
+          const key = constraintLabelKey(label);
+          if (seenCustomLabels.has(key)) {
+            throw new StoreError(400, "Custom constraint labels must be unique.");
+          }
+          seenCustomLabels.add(key);
         }
         if (previous) {
           return {

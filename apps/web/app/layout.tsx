@@ -24,7 +24,8 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Sayable Comfort Check",
-    description: "A private group-chat vibe check before you lock in a plan."
+    description: "A private group-chat vibe check before you lock in a plan.",
+    images: ["/api/og/check/default"]
   }
 };
 

@@ -64,7 +64,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       twitter: {
         card: "summary_large_image",
         title: `${check.title} Comfort Check`,
-        description: `${check.draft.activityLabel} - private answers, group-safe result.`
+        description: `${check.draft.activityLabel} - private answers, group-safe result.`,
+        images: [`/api/og/check/${guestToken}`]
       },
       other: {
         "twitter:url": canonicalUrl
