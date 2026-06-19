@@ -43,18 +43,6 @@ create table public.comfort_checks (
   deleted_at timestamptz
 );
 
-create table public.comfort_tiers (
-  id uuid primary key default gen_random_uuid(),
-  check_id uuid not null references public.comfort_checks(id) on delete cascade,
-  tier_key text not null,
-  label text not null,
-  description text not null,
-  score numeric not null check (score >= 0 and score <= 3),
-  position integer not null default 0,
-  created_at timestamptz not null default now(),
-  unique (check_id, tier_key)
-);
-
 create table public.responses (
   id uuid primary key default gen_random_uuid(),
   check_id uuid not null references public.comfort_checks(id) on delete cascade,
@@ -89,14 +77,6 @@ create table public.purchases (
   status text not null check (status in ('started', 'completed', 'failed', 'cancelled')),
   stripe_checkout_session_id text,
   stripe_payment_intent_id text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
-create table public.saved_groups (
-  id uuid primary key default gen_random_uuid(),
-  owner_user_id uuid not null references auth.users(id) on delete cascade,
-  label text not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -164,21 +144,15 @@ create trigger purchases_set_updated_at
 before update on public.purchases
 for each row execute function public.set_updated_at();
 
-create trigger saved_groups_set_updated_at
-before update on public.saved_groups
-for each row execute function public.set_updated_at();
-
 create trigger sayable_store_locks_set_updated_at
 before update on public.sayable_store_locks
 for each row execute function public.set_updated_at();
 
 alter table public.profiles enable row level security;
 alter table public.comfort_checks enable row level security;
-alter table public.comfort_tiers enable row level security;
 alter table public.responses enable row level security;
 alter table public.result_snapshots enable row level security;
 alter table public.purchases enable row level security;
-alter table public.saved_groups enable row level security;
 alter table public.analytics_events enable row level security;
 alter table public.audit_logs enable row level security;
 alter table public.abuse_events enable row level security;
@@ -441,38 +415,10 @@ using (owner_user_id = auth.uid() and deleted_at is null);
 -- server-mediated routes/functions that enforce purchase state, status
 -- transitions, validation, and audit logging.
 
-create policy "owners can read their tiers"
-on public.comfort_tiers for select
-to authenticated
-using (
-  exists (
-    select 1 from public.comfort_checks cc
-    where cc.id = comfort_tiers.check_id
-      and cc.owner_user_id = auth.uid()
-      and cc.deleted_at is null
-  )
-);
-
 create policy "owners can read redacted purchase rows"
 on public.purchases for select
 to authenticated
 using (owner_user_id = auth.uid());
-
-create policy "owners can read saved groups"
-on public.saved_groups for select
-to authenticated
-using (owner_user_id = auth.uid());
-
-create policy "owners can insert saved groups"
-on public.saved_groups for insert
-to authenticated
-with check (owner_user_id = auth.uid());
-
-create policy "owners can update saved groups"
-on public.saved_groups for update
-to authenticated
-using (owner_user_id = auth.uid())
-with check (owner_user_id = auth.uid());
 
 -- No anonymous table policies are defined. Guest, host-token, response-token,
 -- result-token, analytics, audit, abuse, and admin paths must go through API

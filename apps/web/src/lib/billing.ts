@@ -1,11 +1,22 @@
 import "server-only";
 
-import { publicBaseUrl, startPremiumCheckout, upgradeCheck } from "./store";
+import crypto from "node:crypto";
+import { completePremiumCheckoutBySession, publicBaseUrl, startPremiumCheckout, upgradeCheck } from "./store";
 import { StoreError } from "./store-types";
 
 interface StripeCheckoutSession {
   id: string;
   url?: string | null;
+}
+
+interface StripeCheckoutCompletedEvent {
+  type: "checkout.session.completed";
+  data: {
+    object: {
+      id: string;
+      payment_intent?: string | null;
+    };
+  };
 }
 
 export interface PremiumCheckoutResult {
@@ -25,6 +36,34 @@ function requireStripeTestConfig() {
     throw new StoreError(501, "Stripe test mode needs STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, and NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY.");
   }
   return { secretKey };
+}
+
+function verifyStripeSignature(payload: string, signatureHeader: string | null): void {
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!secret) {
+    throw new StoreError(501, "Stripe webhook secret is not configured.");
+  }
+  const parts = Object.fromEntries(
+    (signatureHeader || "").split(",").map((part) => {
+      const [key, value] = part.split("=");
+      return [key, value];
+    })
+  );
+  const timestamp = parts.t;
+  const expected = parts.v1;
+  if (!timestamp || !expected) {
+    throw new StoreError(400, "Stripe webhook signature is missing.");
+  }
+  const ageSeconds = Math.abs(Date.now() / 1000 - Number(timestamp));
+  if (!Number.isFinite(ageSeconds) || ageSeconds > 300) {
+    throw new StoreError(400, "Stripe webhook signature is too old.");
+  }
+  const actual = crypto.createHmac("sha256", secret).update(`${timestamp}.${payload}`).digest("hex");
+  const left = Buffer.from(actual, "hex");
+  const right = Buffer.from(expected, "hex");
+  if (left.length !== right.length || !crypto.timingSafeEqual(left, right)) {
+    throw new StoreError(400, "Stripe webhook signature is invalid.");
+  }
 }
 
 async function createStripeCheckoutSession(hostToken: string, checkId: string, checkTitle: string): Promise<StripeCheckoutSession> {
@@ -75,4 +114,14 @@ export async function createPremiumCheckout(
   const session = await createStripeCheckoutSession(hostToken, checkId, checkTitle);
   const purchase = await startPremiumCheckout(hostToken, ownerUserId, session.id, actor);
   return session.url ? { purchase, checkoutUrl: session.url } : { purchase };
+}
+
+export async function handleBillingWebhook(payload: string, signatureHeader: string | null): Promise<void> {
+  verifyStripeSignature(payload, signatureHeader);
+  const event = JSON.parse(payload) as { type?: string; data?: { object?: { id?: string; payment_intent?: string | null } } };
+  if (event.type !== "checkout.session.completed") {
+    return;
+  }
+  const completed = event as StripeCheckoutCompletedEvent;
+  await completePremiumCheckoutBySession(completed.data.object.id, completed.data.object.payment_intent || undefined);
 }
