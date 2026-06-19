@@ -61,7 +61,21 @@ function rememberDashboardHostToken(checkId: string, hostToken: string) {
   window.localStorage.setItem(mapKey, JSON.stringify({ ...map, [checkId]: hostToken }));
 }
 
-export default function HostReviewClient({ hostToken }: { hostToken: string }) {
+interface HostReviewClientProps {
+  hostToken?: string;
+  apiPath?: string;
+  resultsPath?: string;
+  upgradePath?: string;
+  requiresAuth?: boolean;
+}
+
+export default function HostReviewClient({
+  hostToken,
+  apiPath,
+  resultsPath,
+  upgradePath,
+  requiresAuth = false
+}: HostReviewClientProps) {
   const [data, setData] = useState<HostData | null>(null);
   const [constraints, setConstraints] = useState<ComfortConstraint[]>([]);
   const [newConstraint, setNewConstraint] = useState("");
@@ -77,18 +91,35 @@ export default function HostReviewClient({ hostToken }: { hostToken: string }) {
 
   const theme = useMemo(() => getTheme(data?.check.themeId), [data?.check.themeId]);
   const limits = data ? getPlanLimits(data.check.plan) : getPlanLimits("free");
+  const reviewApiPath = apiPath || (hostToken ? `/api/checks/host/${hostToken}` : "");
+  const resultsHref = resultsPath || (hostToken ? `/h/${hostToken}` : "/dashboard");
+  const upgradeApiPath = upgradePath || (hostToken ? `/api/checks/host/${hostToken}/upgrade` : "");
+
+  const requestHeaders = useCallback(
+    async (headers: Record<string, string> = {}) => ({
+      ...headers,
+      ...(requiresAuth ? await authHeaders() : {})
+    }),
+    [requiresAuth]
+  );
 
   const load = useCallback(async () => {
     setError("");
     try {
-      const response = await fetch(`/api/checks/host/${hostToken}`, { cache: "no-store" });
+      if (!reviewApiPath) {
+        setError("Host link could not be opened.");
+        return;
+      }
+      const response = await fetch(reviewApiPath, { cache: "no-store", headers: await requestHeaders() });
       const payload = (await response.json()) as HostData & { error?: string };
       if (!response.ok) {
         setError(payload.error || "Host link could not be opened.");
         return;
       }
       setData(payload);
-      rememberDashboardHostToken(payload.check.id, hostToken);
+      if (hostToken) {
+        rememberDashboardHostToken(payload.check.id, hostToken);
+      }
       setConstraints(payload.check.draft.constraints);
       setQuestions(payload.check.draft.questions);
       setTiers(payload.check.draft.tiers);
@@ -103,7 +134,7 @@ export default function HostReviewClient({ hostToken }: { hostToken: string }) {
     } catch {
       setError("Network connection dropped while opening this host link. Try again.");
     }
-  }, [hostToken]);
+  }, [hostToken, requestHeaders, reviewApiPath]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -118,9 +149,9 @@ export default function HostReviewClient({ hostToken }: { hostToken: string }) {
     setMessage("");
     setInvalidFieldId("");
     try {
-      const response = await fetch(`/api/checks/host/${hostToken}`, {
+      const response = await fetch(reviewApiPath, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: await requestHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(body)
       });
       const payload = (await response.json()) as { check?: HostCheck; error?: string };
@@ -270,6 +301,10 @@ export default function HostReviewClient({ hostToken }: { hostToken: string }) {
   }
 
   async function claim() {
+    if (!hostToken) {
+      setError("This saved dashboard check is already tied to your host session.");
+      return false;
+    }
     setError("");
     try {
       const headers = await authHeaders();
@@ -298,7 +333,11 @@ export default function HostReviewClient({ hostToken }: { hostToken: string }) {
     }
     setError("");
     try {
-      const response = await fetch(`/api/checks/host/${hostToken}/upgrade`, {
+      if (!upgradeApiPath) {
+        setError("Premium checkout is unavailable for this saved check.");
+        return;
+      }
+      const response = await fetch(upgradeApiPath, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ outcome })
@@ -529,7 +568,7 @@ export default function HostReviewClient({ hostToken }: { hostToken: string }) {
                 <Clipboard size={18} aria-hidden />
                 Copy link
               </button>
-              <Link className="btn btn-ghost" href={`/h/${hostToken}`}>
+              <Link className="btn btn-ghost" href={resultsHref}>
                 Results
                 <ArrowRight size={18} aria-hidden />
               </Link>
@@ -730,7 +769,7 @@ export default function HostReviewClient({ hostToken }: { hostToken: string }) {
           <p className="muted">{data.result.responseCount} responses</p>
           <strong>{data.result.bestFit.label}</strong>
           <span className="muted">{data.result.bestFit.detail}</span>
-          <Link className="btn btn-secondary" href={`/h/${hostToken}`}>
+          <Link className="btn btn-secondary" href={resultsHref}>
             View host results
             <RefreshCw size={18} aria-hidden />
           </Link>

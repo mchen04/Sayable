@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { deleteResponse, getResponse, updateResponse } from "@/src/lib/store";
-import { responseSchema } from "@/src/lib/schemas";
+import { responseUpdateSchema } from "@/src/lib/schemas";
 import { enforceRateLimit, handleApiError, json, parseJson } from "@/src/lib/http";
 
 function serializeResponse(response: Awaited<ReturnType<typeof getResponse>>) {
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 export async function PUT(request: NextRequest, { params }: RouteContext) {
   try {
     enforceRateLimit(request, "response_update", { limit: 30, windowMs: 60_000 });
-    const input = await parseJson(request, responseSchema);
+    const input = await parseJson(request, responseUpdateSchema);
     const { token } = await params;
     const response = await updateResponse(token, input);
     return json(serializeResponse(response));

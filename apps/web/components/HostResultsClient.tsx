@@ -5,7 +5,7 @@ import Link from "next/link";
 import { createClient, type RealtimeChannel, type SupabaseClient } from "@supabase/supabase-js";
 import { getTheme, type ComfortDraft, type PlanTier } from "@sayable/core";
 import { Clipboard, MessageCircle, RefreshCw, Share2, ShieldCheck } from "lucide-react";
-import { copyText, postAnalytics } from "./client-utils";
+import { authHeaders, copyText } from "./client-utils";
 
 let realtimeClient: SupabaseClient | null | undefined;
 
@@ -54,7 +54,21 @@ function getRealtimeClient(): SupabaseClient | null {
   return realtimeClient;
 }
 
-export default function HostResultsClient({ hostToken }: { hostToken: string }) {
+interface HostResultsClientProps {
+  hostToken?: string;
+  apiPath?: string;
+  reviewPath?: string;
+  finalSharePath?: string;
+  requiresAuth?: boolean;
+}
+
+export default function HostResultsClient({
+  hostToken,
+  apiPath,
+  reviewPath,
+  finalSharePath,
+  requiresAuth = false
+}: HostResultsClientProps) {
   const [data, setData] = useState<HostResultData | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -62,6 +76,17 @@ export default function HostResultsClient({ hostToken }: { hostToken: string }) 
   const [isLoading, setIsLoading] = useState(true);
   const [syncMode, setSyncMode] = useState<"connecting" | "live" | "refresh">("connecting");
   const theme = useMemo(() => getTheme(data?.check.themeId), [data?.check.themeId]);
+  const resultsApiPath = apiPath || (hostToken ? `/api/checks/host/${hostToken}` : "");
+  const reviewHref = reviewPath || (hostToken ? `/checks/${hostToken}/review` : "/dashboard");
+  const finalShareApiPath = finalSharePath || (hostToken ? `/api/checks/host/${hostToken}/final-share` : "");
+
+  const requestHeaders = useCallback(
+    async (headers: Record<string, string> = {}) => ({
+      ...headers,
+      ...(requiresAuth ? await authHeaders() : {})
+    }),
+    [requiresAuth]
+  );
 
   const load = useCallback(
     async (showLoading = true) => {
@@ -69,7 +94,12 @@ export default function HostResultsClient({ hostToken }: { hostToken: string }) 
         setIsLoading(true);
       }
       try {
-        const response = await fetch(`/api/checks/host/${hostToken}`, { cache: "no-store" });
+        if (!resultsApiPath) {
+          setError("Host results could not be opened.");
+          setIsLoading(false);
+          return;
+        }
+        const response = await fetch(resultsApiPath, { cache: "no-store", headers: await requestHeaders() });
         const payload = (await response.json()) as HostResultData & { error?: string };
         if (!response.ok) {
           setError(payload.error || "Host results could not be opened.");
@@ -83,7 +113,7 @@ export default function HostResultsClient({ hostToken }: { hostToken: string }) 
         setIsLoading(false);
       }
     },
-    [hostToken]
+    [requestHeaders, resultsApiPath]
   );
 
   useEffect(() => {
@@ -140,7 +170,11 @@ export default function HostResultsClient({ hostToken }: { hostToken: string }) 
     setMessage("");
     let payload: { message?: string; resultUrl?: string; error?: string };
     try {
-      const response = await fetch(`/api/checks/host/${hostToken}/final-share`, { method: "POST" });
+      if (!finalShareApiPath) {
+        setError("Could not generate final share.");
+        return;
+      }
+      const response = await fetch(finalShareApiPath, { method: "POST", headers: await requestHeaders() });
       payload = (await response.json()) as { message?: string; resultUrl?: string; error?: string };
       if (!response.ok || !payload.message) {
         setError(payload.error || "Could not generate final share.");
@@ -302,7 +336,7 @@ export default function HostResultsClient({ hostToken }: { hostToken: string }) 
                 <Clipboard size={18} aria-hidden />
                 Copy text
               </button>
-              <Link className="btn btn-ghost" href={`/checks/${hostToken}/review`}>
+              <Link className="btn btn-ghost" href={reviewHref}>
                 <MessageCircle size={18} aria-hidden />
                 Share guest link
               </Link>

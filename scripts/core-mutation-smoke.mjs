@@ -86,37 +86,37 @@ const webMutations = [
   {
     name: "public snapshot includes private notes",
     file: "apps/web/src/lib/store.ts",
-    from: "      snapshot: result.publicSnapshot,",
-    to: "      snapshot: { ...result.publicSnapshot, detail: responses.map((response) => response.privateNote || \"\").join(\" \") },"
+    from: "    snapshot: result.publicSnapshot,",
+    to: "    snapshot: { ...result.publicSnapshot, detail: responses.map((response) => response.privateNote || \"\").join(\" \") },"
   },
   {
     name: "final share allowed while privacy suppressed",
     file: "apps/web/src/lib/store.ts",
     from:
-      "    if (result.isPrivacySuppressed) {\n" +
-      "      throw new StoreError(409, `Final share is available after ${result.privacyThreshold} private responses.`);\n" +
-      "    }\n",
+      "  if (result.isPrivacySuppressed) {\n" +
+      "    throw new StoreError(409, `Final share is available after ${result.privacyThreshold} private responses.`);\n" +
+      "  }\n",
     to: ""
   },
   {
     name: "deleted check terminal guard removed",
     file: "apps/web/src/lib/store.ts",
     from:
-      "    if (check.status === \"deleted\") {\n" +
-      "      const isIdempotentDelete =\n" +
-      "        patch.status === \"deleted\" &&\n" +
-      "        !patch.constraints &&\n" +
-      "        !patch.questions &&\n" +
-      "        !patch.tiers &&\n" +
-      "        !patch.resetDraft &&\n" +
-      "        !patch.themeId &&\n" +
-      "        !patch.customTheme &&\n" +
-      "        !patch.resetCustomTheme;\n" +
-      "      if (isIdempotentDelete) {\n" +
-      "        return check;\n" +
-      "      }\n" +
-      "      throw new StoreError(410, \"This Comfort Check has been deleted.\");\n" +
-      "    }\n",
+      "  if (check.status === \"deleted\") {\n" +
+      "    const isIdempotentDelete =\n" +
+      "      patch.status === \"deleted\" &&\n" +
+      "      !patch.constraints &&\n" +
+      "      !patch.questions &&\n" +
+      "      !patch.tiers &&\n" +
+      "      !patch.resetDraft &&\n" +
+      "      !patch.themeId &&\n" +
+      "      !patch.customTheme &&\n" +
+      "      !patch.resetCustomTheme;\n" +
+      "    if (isIdempotentDelete) {\n" +
+      "      return check;\n" +
+      "    }\n" +
+      "    throw new StoreError(410, \"This Comfort Check has been deleted.\");\n" +
+      "  }\n",
     to: ""
   }
 ];

@@ -10,11 +10,18 @@ export const createCheckSchema = z.object({
   creatorNonce: z.string().min(16).max(120).optional()
 });
 
-export const responseSchema = z.object({
+const responseBaseSchema = z.object({
   status: z.enum(["in", "maybe", "out"]),
   tierId: z.string().min(1).max(80),
   constraintIds: z.array(z.string().min(1).max(120)).max(12),
-  privateNote: z.string().max(500).optional(),
+  privateNote: z.string().max(500).optional()
+});
+
+export const responseCreateSchema = responseBaseSchema.extend({
+  clientNonce: z.string().min(16).max(120)
+});
+
+export const responseUpdateSchema = responseBaseSchema.extend({
   clientNonce: z.string().min(16).max(120).optional()
 });
 
@@ -86,6 +93,7 @@ const analyticsEventNames = [
   "auto_draft_generated",
   "check_created",
   "share_sheet_opened",
+  "host_review_opened",
   "link_copied",
   "guest_page_opened",
   "guest_response_submitted",

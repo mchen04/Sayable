@@ -11,7 +11,8 @@ interface DashboardCheck {
   plan: string;
   status: string;
   updatedAt: string;
-  hostToken?: string;
+  reviewUrl: string;
+  resultsUrl: string;
 }
 
 function maskedOwnerId(ownerUserId: string): string {
@@ -34,13 +35,7 @@ export default function DashboardClient() {
       })
       .then((response) => response.json())
       .then((payload: { checks?: DashboardCheck[] }) => {
-        const map = JSON.parse(window.localStorage.getItem("sayable_host_token_by_check_id") || "{}") as Record<string, string>;
-        setChecks(
-          (payload.checks || []).map((check) => ({
-            ...check,
-            ...(map[check.id] ? { hostToken: map[check.id] } : {})
-          }))
-        );
+        setChecks(payload.checks || []);
       })
       .catch(() => setChecks([]));
   }, []);
@@ -64,18 +59,14 @@ export default function DashboardClient() {
               <p className="muted">
                 {check.activityType} · {check.status} · updated {new Date(check.updatedAt).toLocaleString()}
               </p>
-              {check.hostToken ? (
-                <div className="button-row">
-                  <Link className="btn btn-secondary" href={`/checks/${check.hostToken}/review`}>
-                    Review
-                  </Link>
-                  <Link className="btn btn-ghost" href={`/h/${check.hostToken}`}>
-                    Results
-                  </Link>
-                </div>
-              ) : (
-                <div className="status-note">Open this check from its saved host link on this device.</div>
-              )}
+              <div className="button-row">
+                <Link className="btn btn-secondary" href={check.reviewUrl}>
+                  Review
+                </Link>
+                <Link className="btn btn-ghost" href={check.resultsUrl}>
+                  Results
+                </Link>
+              </div>
             </article>
           ))
         ) : (

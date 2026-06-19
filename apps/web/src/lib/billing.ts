@@ -4,9 +4,12 @@ import crypto from "node:crypto";
 import {
   completePremiumCheckoutBySession,
   preflightPremiumCheckout,
+  preflightPremiumCheckoutById,
   publicBaseUrl,
   startPremiumCheckout,
-  upgradeCheck
+  startPremiumCheckoutById,
+  upgradeCheck,
+  upgradeCheckById
 } from "./store";
 import { StoreError } from "./store-types";
 
@@ -128,6 +131,26 @@ export async function createPremiumCheckout(
   const check = await preflightPremiumCheckout(hostToken, ownerUserId);
   const session = await createStripeCheckoutSession(ownerUserId, check.id, check.title);
   const purchase = await startPremiumCheckout(hostToken, ownerUserId, session.id, actor);
+  return session.url ? { purchase, checkoutUrl: session.url } : { purchase };
+}
+
+export async function createPremiumCheckoutForCheck(
+  checkId: string,
+  ownerUserId: string,
+  actor: "demo_user" | "host",
+  outcome: "success" | "failed" | "cancelled" = "success"
+): Promise<PremiumCheckoutResult> {
+  if (stripeMode() === "mock") {
+    return {
+      purchase: await upgradeCheckById(checkId, ownerUserId, outcome, "mock", {}, actor)
+    };
+  }
+  if (outcome !== "success") {
+    throw new StoreError(400, "Checkout outcome simulation is only available in mock mode.");
+  }
+  const check = await preflightPremiumCheckoutById(checkId, ownerUserId);
+  const session = await createStripeCheckoutSession(ownerUserId, check.id, check.title);
+  const purchase = await startPremiumCheckoutById(checkId, ownerUserId, session.id, actor);
   return session.url ? { purchase, checkoutUrl: session.url } : { purchase };
 }
 

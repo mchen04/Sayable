@@ -15,7 +15,9 @@ export async function GET(request: NextRequest) {
       activityType: check.activityType,
       plan: check.plan,
       status: check.status,
-      updatedAt: check.updatedAt
+      updatedAt: check.updatedAt,
+      reviewUrl: `/dashboard/checks/${check.id}/review`,
+      resultsUrl: `/dashboard/checks/${check.id}/results`
     }));
     return json({ checks });
   } catch (error) {

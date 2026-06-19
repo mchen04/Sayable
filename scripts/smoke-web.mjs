@@ -103,6 +103,16 @@ function runStaticContractChecks() {
     guestPage.includes("images: [`/api/og/check/${guestToken}`]"),
     "Guest Twitter metadata must include the generated OG image"
   );
+
+  for (const relativePath of ["apps/web/app/checks/[hostToken]/review/page.tsx", "apps/web/app/h/[hostToken]/page.tsx"]) {
+    const hostPage = sourceFile(relativePath);
+    staticAssert(hostPage.includes("robots: { index: false"), `${relativePath} must mark host-token pages noindex`);
+    staticAssert(!hostPage.includes("/api/og/check/${hostToken}"), `${relativePath} must not expose host tokens in OG images`);
+    staticAssert(!hostPage.includes("canonicalUrl"), `${relativePath} must not publish canonical host-token URLs`);
+  }
+
+  const dashboard = sourceFile("apps/web/components/DashboardClient.tsx");
+  staticAssert(!dashboard.includes("localStorage"), "Dashboard management must not depend on same-device host-token storage");
 }
 
 runStaticContractChecks();
@@ -289,7 +299,7 @@ async function main() {
     const submitted = await request(`/api/checks/guest/${suppressedShareCheck.guestToken}/responses`, {
       method: "POST",
       headers: { "x-forwarded-for": `203.0.120.${index + 1}` },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ ...payload, clientNonce: clientNonce(`suppressed-share-${index}`) })
     });
     assert(submitted.response.status === 201, `suppressed final-share setup response ${index + 1} failed`);
   }
@@ -306,6 +316,11 @@ async function main() {
     body: JSON.stringify({ status: "in", tierId: "missing", constraintIds: [] })
   });
   assert(malformed.response.status === 400, "malformed tier should be rejected");
+  const missingNonce = await request(`/api/checks/guest/${guestToken}/responses`, {
+    method: "POST",
+    body: JSON.stringify({ status: "in", tierId: "easy_yes", constraintIds: [] })
+  });
+  assert(missingNonce.response.status === 400, "guest response create should require a client nonce");
 
   const firstResponse = await request(`/api/checks/guest/${guestToken}/responses`, {
     method: "POST",
@@ -414,7 +429,7 @@ async function main() {
     const submitted = await request(`/api/checks/guest/${guestToken}/responses`, {
       method: "POST",
       headers: { "x-forwarded-for": `203.0.113.${12 + index}` },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ ...payload, clientNonce: clientNonce(`primary-extra-${index}`) })
     });
     assert(submitted.response.status === 201, `extra guest response failed: ${JSON.stringify(submitted.body)}`);
   }
@@ -496,6 +511,28 @@ async function main() {
   assert(forgedDashboard.response.status === 401, "hard-coded demo auth secret should not forge dashboard access");
 
   const wrongSession = await demoSession();
+  const dashboard = await request("/api/dashboard", {
+    headers: { Authorization: `Bearer ${session.token}` }
+  });
+  assert(dashboard.response.ok, "signed dashboard should open");
+  const savedCheck = dashboard.body.checks.find((check) => check.id === host.body.check.id);
+  assert(savedCheck?.reviewUrl === `/dashboard/checks/${host.body.check.id}/review`, "dashboard review URL should be owner-scoped");
+  assert(savedCheck?.resultsUrl === `/dashboard/checks/${host.body.check.id}/results`, "dashboard results URL should be owner-scoped");
+  assert(!JSON.stringify(savedCheck).includes(hostToken), "dashboard payload must not expose host token");
+  const ownerManagedCheck = await request(`/api/dashboard/checks/${host.body.check.id}`, {
+    headers: { Authorization: `Bearer ${session.token}` }
+  });
+  assert(ownerManagedCheck.response.ok, "owner-scoped dashboard check should open");
+  const ownerFinalShare = await request(`/api/dashboard/checks/${host.body.check.id}/final-share`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${session.token}` }
+  });
+  assert(ownerFinalShare.response.ok, "owner-scoped final share should work");
+  const wrongOwnerManagedCheck = await request(`/api/dashboard/checks/${host.body.check.id}`, {
+    headers: { Authorization: `Bearer ${wrongSession.token}` }
+  });
+  assert(wrongOwnerManagedCheck.response.status === 404, "wrong owner should not open owner-scoped dashboard check");
+
   const wrongOwnerUpgrade = await request(`/api/checks/host/${hostToken}/upgrade`, {
     method: "POST",
     headers: { Authorization: `Bearer ${wrongSession.token}` },
@@ -566,7 +603,7 @@ async function main() {
     headers: { Authorization: `Bearer ${preserveSession.token}` }
   });
   assert(preserveClaim.response.ok, "pre-upgrade preserve claim failed");
-  const preserveUpgrade = await request(`/api/checks/host/${preserveCheck.hostToken}/upgrade`, {
+  const preserveUpgrade = await request(`/api/dashboard/checks/${preserveHost.body.check.id}/upgrade`, {
     method: "POST",
     headers: { Authorization: `Bearer ${preserveSession.token}` },
     body: JSON.stringify({ outcome: "success" })
@@ -582,8 +619,8 @@ async function main() {
     "premium upgrade should preserve custom constraints"
   );
 
-  const dashboard = await request(`/api/dashboard?ownerUserId=demo_smoke_user`);
-  assert(dashboard.response.status === 401, "dashboard should reject query-only owner access");
+  const queryOnlyDashboard = await request(`/api/dashboard?ownerUserId=demo_smoke_user`);
+  assert(queryOnlyDashboard.response.status === 401, "dashboard should reject query-only owner access");
 
   const ownedDashboard = await request("/api/dashboard", {
     headers: { Authorization: `Bearer ${session.token}` }
@@ -648,7 +685,7 @@ async function main() {
   const closedSubmit = await request(`/api/checks/guest/${closedCheck.guestToken}/responses`, {
     method: "POST",
     headers: { "x-forwarded-for": "203.0.113.140" },
-    body: JSON.stringify({ status: "in", tierId: "easy_yes", constraintIds: [] })
+    body: JSON.stringify({ status: "in", tierId: "easy_yes", constraintIds: [], clientNonce: clientNonce("closed-submit") })
   });
   assert(closedSubmit.response.status === 410, "closed check should reject responses");
   const closedShare = await request(`/api/checks/host/${closedCheck.hostToken}/final-share`, { method: "POST" });
@@ -759,7 +796,7 @@ async function main() {
     const submitted = await request(`/api/checks/guest/${limitCheck.guestToken}/responses`, {
       method: "POST",
       headers: { "x-forwarded-for": `203.0.113.${index + 1}` },
-      body: JSON.stringify({ status: "in", tierId: "easy_yes", constraintIds: [] })
+      body: JSON.stringify({ status: "in", tierId: "easy_yes", constraintIds: [], clientNonce: clientNonce(`free-cap-${index}`) })
     });
     assert(submitted.response.status === 201, `free response ${index + 1} failed`);
     created.push(submitted.body.responseToken);
@@ -767,7 +804,7 @@ async function main() {
   const cap = await request(`/api/checks/guest/${limitCheck.guestToken}/responses`, {
     method: "POST",
     headers: { "x-forwarded-for": "203.0.113.99" },
-    body: JSON.stringify({ status: "in", tierId: "easy_yes", constraintIds: [] })
+    body: JSON.stringify({ status: "in", tierId: "easy_yes", constraintIds: [], clientNonce: clientNonce("free-cap-over") })
   });
   assert(cap.response.status === 429, "31st free response should hit cap");
 
@@ -788,14 +825,14 @@ async function main() {
     const submitted = await request(`/api/checks/guest/${premiumLimitCheck.guestToken}/responses`, {
       method: "POST",
       headers: { "x-forwarded-for": `203.0.114.${index + 1}` },
-      body: JSON.stringify({ status: "in", tierId: "easy_yes", constraintIds: [] })
+      body: JSON.stringify({ status: "in", tierId: "easy_yes", constraintIds: [], clientNonce: clientNonce(`premium-cap-${index}`) })
     });
     assert(submitted.response.status === 201, `premium response ${index + 1} failed`);
   }
   const premiumCap = await request(`/api/checks/guest/${premiumLimitCheck.guestToken}/responses`, {
     method: "POST",
     headers: { "x-forwarded-for": "203.0.114.201" },
-    body: JSON.stringify({ status: "in", tierId: "easy_yes", constraintIds: [] })
+    body: JSON.stringify({ status: "in", tierId: "easy_yes", constraintIds: [], clientNonce: clientNonce("premium-cap-over") })
   });
   assert(premiumCap.response.status === 429, "101st premium response should hit cap");
 

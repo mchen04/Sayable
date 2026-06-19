@@ -53,8 +53,11 @@ export {
   completePremiumCheckoutBySession,
   getPremiumCheckoutReturn,
   preflightPremiumCheckout,
+  preflightPremiumCheckoutById,
   startPremiumCheckout,
-  upgradeCheck
+  startPremiumCheckoutById,
+  upgradeCheck,
+  upgradeCheckById
 } from "./store-billing";
 
 function isExpired(check: StoredCheck): boolean {
@@ -109,6 +112,17 @@ interface HostCommandContext {
   actor: Extract<AuditLog["actor"], "demo_user" | "host">;
   mode: HostAuthMode;
 }
+
+type HostCheckPatch = {
+  constraints?: ComfortConstraint[] | undefined;
+  questions?: ComfortQuestion[] | undefined;
+  tiers?: ComfortTier[] | undefined;
+  resetDraft?: boolean | undefined;
+  themeId?: string | undefined;
+  customTheme?: { accent: string; icon: string } | undefined;
+  resetCustomTheme?: boolean | undefined;
+  status?: "closed" | "deleted" | undefined;
+};
 
 export function serializeHostCheck(check: StoredCheck): HostVisibleCheck {
   return {
@@ -268,21 +282,15 @@ function requireCheckByToken(
   return check;
 }
 
-export async function getPublicCheck(guestToken: string) {
-  const store = await readStore();
-  const check = requireCheckByToken(store, guestToken, "guestTokenHash", "guest", "Comfort Check not found.");
-  if (check.status === "deleted") {
-    throw new StoreError(410, "This Comfort Check has been deleted.");
+function requireOwnerCheck(store: StoreFile, checkId: string, ownerUserId: string): StoredCheck {
+  const check = store.checks.find((candidate) => candidate.id === checkId && candidate.ownerUserId === ownerUserId);
+  if (!check) {
+    throw new StoreError(404, "Saved Comfort Check not found.");
   }
-  return {
-    check: { ...check, status: visibleStatus(check) },
-    responseCount: activeResponsesFor(store, check.id).length
-  };
+  return check;
 }
 
-export async function getHostCheck(hostToken: string) {
-  const store = await readStore();
-  const check = requireCheckByToken(store, hostToken, "hostTokenHash", "host", "Host link not found.");
+function hostCheckPayload(store: StoreFile, check: StoredCheck) {
   if (check.status === "deleted") {
     throw new StoreError(410, "This Comfort Check has been deleted.");
   }
@@ -300,6 +308,24 @@ export async function getHostCheck(hostToken: string) {
   };
 }
 
+export async function getPublicCheck(guestToken: string) {
+  const store = await readStore();
+  const check = requireCheckByToken(store, guestToken, "guestTokenHash", "guest", "Comfort Check not found.");
+  if (check.status === "deleted") {
+    throw new StoreError(410, "This Comfort Check has been deleted.");
+  }
+  return {
+    check: { ...check, status: visibleStatus(check) },
+    responseCount: activeResponsesFor(store, check.id).length
+  };
+}
+
+export async function getHostCheck(hostToken: string) {
+  const store = await readStore();
+  const check = requireCheckByToken(store, hostToken, "hostTokenHash", "host", "Host link not found.");
+  return hostCheckPayload(store, check);
+}
+
 export async function getHostCheckForApi(hostToken: string) {
   const store = await readStore();
   const check = requireCheckByToken(store, hostToken, "hostTokenHash", "host", "Host link not found.");
@@ -312,6 +338,11 @@ export async function getHostCheckForApi(hostToken: string) {
     responses,
     result: calculateResultSummary(check.draft, responses)
   };
+}
+
+export async function getOwnerCheck(checkId: string, ownerUserId: string) {
+  const store = await readStore();
+  return hostCheckPayload(store, requireOwnerCheck(store, checkId, ownerUserId));
 }
 
 export async function getSnapshot(resultToken: string) {
@@ -361,7 +392,7 @@ export async function getPreviewByToken(token: string) {
 export function submitResponse(
   guestToken: string,
   input: ResponseInput,
-  clientNonceHash?: string
+  clientNonceHash: string
 ): Promise<{ response: StoredResponse; responseToken: string; check: StoredCheck }> {
   return mutateStore((store) => {
     const check = requireCheckByToken(store, guestToken, "guestTokenHash", "guest", "Comfort Check not found.");
@@ -373,16 +404,14 @@ export function submitResponse(
       throw new StoreError(429, `This ${check.plan} Comfort Check has reached its ${limit}-response limit.`);
     }
     validateResponseInput(check.draft, input);
-    if (clientNonceHash) {
-      const duplicate = store.responses.find(
-        (response) =>
-          response.checkId === check.id &&
-          response.clientNonceHash === clientNonceHash &&
-          !response.deletedAt
-      );
-      if (duplicate) {
-        throw new StoreError(409, "You already responded from this browser. Use your response link to edit.");
-      }
+    const duplicate = store.responses.find(
+      (response) =>
+        response.checkId === check.id &&
+        response.clientNonceHash === clientNonceHash &&
+        !response.deletedAt
+    );
+    if (duplicate) {
+      throw new StoreError(409, "You already responded from this browser. Use your response link to edit.");
     }
 
     const token = randomToken();
@@ -395,7 +424,7 @@ export function submitResponse(
       tierId: input.tierId,
       constraintIds: uniqueKnownConstraintIds(check.draft, input.constraintIds),
       createdAt,
-      ...(clientNonceHash ? { clientNonceHash } : {}),
+      clientNonceHash,
       ...(input.privateNote?.trim() ? { privateNote: input.privateNote.trim().slice(0, 500) } : {})
     };
     store.responses.push(response);
@@ -528,162 +557,161 @@ function anonymizeResponsesForCheck(store: StoreFile, checkId: string, deletedAt
   invalidateResultSnapshots(store, checkId, deletedAt);
 }
 
-export function updateHostCheck(
-  hostToken: string,
-  patch: {
-    constraints?: ComfortConstraint[] | undefined;
-    questions?: ComfortQuestion[] | undefined;
-    tiers?: ComfortTier[] | undefined;
-    resetDraft?: boolean | undefined;
-    themeId?: string | undefined;
-    customTheme?: { accent: string; icon: string } | undefined;
-    resetCustomTheme?: boolean | undefined;
-    status?: "closed" | "deleted" | undefined;
+function applyHostCheckPatch(store: StoreFile, check: StoredCheck, patch: HostCheckPatch): StoredCheck {
+  if (check.status === "deleted") {
+    const isIdempotentDelete =
+      patch.status === "deleted" &&
+      !patch.constraints &&
+      !patch.questions &&
+      !patch.tiers &&
+      !patch.resetDraft &&
+      !patch.themeId &&
+      !patch.customTheme &&
+      !patch.resetCustomTheme;
+    if (isIdempotentDelete) {
+      return check;
+    }
+    throw new StoreError(410, "This Comfort Check has been deleted.");
   }
-): Promise<StoredCheck> {
+  if (patch.resetDraft) {
+    check.draft = createComfortDraft(
+      {
+        title: check.draft.title,
+        activityType: check.activityType,
+        ...(check.draft.currentIdea ? { currentIdea: check.draft.currentIdea } : {}),
+        ...(check.draft.vibe ? { vibe: check.draft.vibe } : {})
+      },
+      check.plan
+    );
+  }
+  if (patch.constraints) {
+    const maxCustom = getPlanLimits(check.plan).maxCustomConstraints;
+    const existing = new Map(check.draft.constraints.map((constraint) => [constraint.id, constraint]));
+    const seenIds = new Set<string>();
+    const seenCustomLabels = new Set<string>();
+    const normalized = patch.constraints.map((constraint) => {
+      const previous = existing.get(constraint.id);
+      const label = constraint.label.trim().slice(0, 100);
+      if (!label) {
+        throw new StoreError(400, "Constraint labels cannot be empty.");
+      }
+      if (seenIds.has(constraint.id)) {
+        throw new StoreError(400, "Constraint ids must be unique.");
+      }
+      seenIds.add(constraint.id);
+      const isCustom = Boolean(
+        previous?.isCustom || previous?.group === "custom" || constraint.isCustom || constraint.group === "custom"
+      );
+      if (isCustom) {
+        const key = constraintLabelKey(label);
+        if (seenCustomLabels.has(key)) {
+          throw new StoreError(400, "Custom constraint labels must be unique.");
+        }
+        seenCustomLabels.add(key);
+      }
+      if (previous) {
+        return {
+          ...previous,
+          label
+        };
+      }
+      if (constraint.group !== "custom" && !constraint.isCustom) {
+        throw new StoreError(400, "New constraints must be custom constraints.");
+      }
+      return {
+        id: constraint.id,
+        label,
+        group: "custom" as const,
+        isCustom: true
+      };
+    });
+    const customCount = normalized.filter((constraint) => constraint.isCustom || constraint.group === "custom").length;
+    if (customCount > maxCustom) {
+      throw new StoreError(400, `${check.plan} checks allow ${maxCustom} custom constraints.`);
+    }
+    check.draft.constraints = normalized.slice(0, check.plan === "premium" ? 16 : 8);
+  }
+  if (patch.questions) {
+    check.draft.questions = patch.questions.map((question) => ({
+      id: question.id,
+      prompt: question.prompt.trim().slice(0, 140),
+      helper: question.helper.trim().slice(0, 220)
+    }));
+  }
+  if (patch.tiers) {
+    check.draft.tiers = patch.tiers.map((tier) => ({
+      id: tier.id,
+      label: tier.label.trim().slice(0, 80),
+      description: tier.description.trim().slice(0, 180),
+      score: Math.max(0, Math.min(3, tier.score))
+    }));
+  }
+  if (patch.themeId) {
+    if (!THEMES.some((theme) => theme.id === patch.themeId)) {
+      throw new StoreError(400, "Choose a valid Sayable theme.");
+    }
+    if (!canUseTheme(check.plan, patch.themeId)) {
+      throw new StoreError(402, "Upgrade to Premium Check to use that theme.");
+    }
+    check.themeId = patch.themeId;
+  }
+  if (patch.customTheme) {
+    if (check.plan !== "premium") {
+      throw new StoreError(402, "Custom color and icon require Premium Check.");
+    }
+    if (!/^#[0-9a-fA-F]{6}$/.test(patch.customTheme.accent)) {
+      throw new StoreError(400, "Choose a valid custom color.");
+    }
+    if (!/^[a-z0-9_-]{1,16}$/i.test(patch.customTheme.icon)) {
+      throw new StoreError(400, "Choose a valid custom icon name.");
+    }
+    check.customTheme = {
+      accent: patch.customTheme.accent,
+      icon: patch.customTheme.icon.slice(0, 16)
+    };
+  }
+  if (patch.resetCustomTheme) {
+    delete check.customTheme;
+  }
+  if (patch.status) {
+    const statusChangedAt = now();
+    check.status = patch.status;
+    if (patch.status === "deleted") {
+      anonymizeResponsesForCheck(store, check.id, statusChangedAt);
+    }
+    if (patch.status === "closed" || patch.status === "deleted") {
+      store.auditLogs.push({
+        id: crypto.randomUUID(),
+        action: `host_${patch.status}`,
+        checkId: check.id,
+        createdAt: statusChangedAt,
+        actor: "host",
+        detail: `Host token ${patch.status} Comfort Check.`
+      });
+    }
+  }
+  check.updatedAt = now();
+  store.analyticsEvents.push({
+    id: crypto.randomUUID(),
+    name: patch.resetDraft ? "auto_draft_reset" : "check_updated",
+    checkId: check.id,
+    createdAt: check.updatedAt,
+    context: { plan: check.plan }
+  });
+  return check;
+}
+
+export function updateHostCheck(hostToken: string, patch: HostCheckPatch): Promise<StoredCheck> {
   return mutateStore((store) => {
     const check = requireCheckByToken(store, hostToken, "hostTokenHash", "host", "Host link not found.");
-    if (check.status === "deleted") {
-      const isIdempotentDelete =
-        patch.status === "deleted" &&
-        !patch.constraints &&
-        !patch.questions &&
-        !patch.tiers &&
-        !patch.resetDraft &&
-        !patch.themeId &&
-        !patch.customTheme &&
-        !patch.resetCustomTheme;
-      if (isIdempotentDelete) {
-        return check;
-      }
-      throw new StoreError(410, "This Comfort Check has been deleted.");
-    }
-    if (patch.resetDraft) {
-      check.draft = createComfortDraft(
-        {
-          title: check.draft.title,
-          activityType: check.activityType,
-          ...(check.draft.currentIdea ? { currentIdea: check.draft.currentIdea } : {}),
-          ...(check.draft.vibe ? { vibe: check.draft.vibe } : {})
-        },
-        check.plan
-      );
-    }
-    if (patch.constraints) {
-      const maxCustom = getPlanLimits(check.plan).maxCustomConstraints;
-      const existing = new Map(check.draft.constraints.map((constraint) => [constraint.id, constraint]));
-      const seenIds = new Set<string>();
-      const seenCustomLabels = new Set<string>();
-      const normalized = patch.constraints.map((constraint) => {
-        const previous = existing.get(constraint.id);
-        const label = constraint.label.trim().slice(0, 100);
-        if (!label) {
-          throw new StoreError(400, "Constraint labels cannot be empty.");
-        }
-        if (seenIds.has(constraint.id)) {
-          throw new StoreError(400, "Constraint ids must be unique.");
-        }
-        seenIds.add(constraint.id);
-        const isCustom = Boolean(
-          previous?.isCustom || previous?.group === "custom" || constraint.isCustom || constraint.group === "custom"
-        );
-        if (isCustom) {
-          const key = constraintLabelKey(label);
-          if (seenCustomLabels.has(key)) {
-            throw new StoreError(400, "Custom constraint labels must be unique.");
-          }
-          seenCustomLabels.add(key);
-        }
-        if (previous) {
-          return {
-            ...previous,
-            label
-          };
-        }
-        if (constraint.group !== "custom" && !constraint.isCustom) {
-          throw new StoreError(400, "New constraints must be custom constraints.");
-        }
-        return {
-          id: constraint.id,
-          label,
-          group: "custom" as const,
-          isCustom: true
-        };
-      });
-      const customCount = normalized.filter((constraint) => constraint.isCustom || constraint.group === "custom").length;
-      if (customCount > maxCustom) {
-        throw new StoreError(400, `${check.plan} checks allow ${maxCustom} custom constraints.`);
-      }
-      check.draft.constraints = normalized.slice(0, check.plan === "premium" ? 16 : 8);
-    }
-    if (patch.questions) {
-      check.draft.questions = patch.questions.map((question) => ({
-        id: question.id,
-        prompt: question.prompt.trim().slice(0, 140),
-        helper: question.helper.trim().slice(0, 220)
-      }));
-    }
-    if (patch.tiers) {
-      check.draft.tiers = patch.tiers.map((tier) => ({
-        id: tier.id,
-        label: tier.label.trim().slice(0, 80),
-        description: tier.description.trim().slice(0, 180),
-        score: Math.max(0, Math.min(3, tier.score))
-      }));
-    }
-    if (patch.themeId) {
-      if (!THEMES.some((theme) => theme.id === patch.themeId)) {
-        throw new StoreError(400, "Choose a valid Sayable theme.");
-      }
-      if (!canUseTheme(check.plan, patch.themeId)) {
-        throw new StoreError(402, "Upgrade to Premium Check to use that theme.");
-      }
-      check.themeId = patch.themeId;
-    }
-    if (patch.customTheme) {
-      if (check.plan !== "premium") {
-        throw new StoreError(402, "Custom color and icon require Premium Check.");
-      }
-      if (!/^#[0-9a-fA-F]{6}$/.test(patch.customTheme.accent)) {
-        throw new StoreError(400, "Choose a valid custom color.");
-      }
-      if (!/^[a-z0-9_-]{1,16}$/i.test(patch.customTheme.icon)) {
-        throw new StoreError(400, "Choose a valid custom icon name.");
-      }
-      check.customTheme = {
-        accent: patch.customTheme.accent,
-        icon: patch.customTheme.icon.slice(0, 16)
-      };
-    }
-    if (patch.resetCustomTheme) {
-      delete check.customTheme;
-    }
-    if (patch.status) {
-      const statusChangedAt = now();
-      check.status = patch.status;
-      if (patch.status === "deleted") {
-        anonymizeResponsesForCheck(store, check.id, statusChangedAt);
-      }
-      if (patch.status === "closed" || patch.status === "deleted") {
-        store.auditLogs.push({
-          id: crypto.randomUUID(),
-          action: `host_${patch.status}`,
-          checkId: check.id,
-          createdAt: statusChangedAt,
-          actor: "host",
-          detail: `Host token ${patch.status} Comfort Check.`
-        });
-      }
-    }
-    check.updatedAt = now();
-    store.analyticsEvents.push({
-      id: crypto.randomUUID(),
-      name: patch.resetDraft ? "auto_draft_reset" : "check_updated",
-      checkId: check.id,
-      createdAt: check.updatedAt,
-      context: { plan: check.plan }
-    });
-    return check;
+    return applyHostCheckPatch(store, check, patch);
+  });
+}
+
+export function updateOwnerCheck(checkId: string, ownerUserId: string, patch: HostCheckPatch): Promise<StoredCheck> {
+  return mutateStore((store) => {
+    const check = requireOwnerCheck(store, checkId, ownerUserId);
+    return applyHostCheckPatch(store, check, patch);
   });
 }
 
@@ -763,6 +791,38 @@ export function deleteOwnerAccount(
   });
 }
 
+function markFinalSharedForCheckRecord(store: StoreFile, check: StoredCheck): {
+  check: StoredCheck;
+  resultToken: string;
+  finalMessage: string;
+} {
+  requireUsableCheck(check);
+  const responses = store.responses.filter((response) => response.checkId === check.id);
+  const result = calculateResultSummary(check.draft, responses);
+  if (result.isPrivacySuppressed) {
+    throw new StoreError(409, `Final share is available after ${result.privacyThreshold} private responses.`);
+  }
+  const resultToken = randomToken();
+  check.resultTokenHash = hashToken(resultToken);
+  check.finalSharedAt = now();
+  check.updatedAt = check.finalSharedAt;
+  store.analyticsEvents.push({
+    id: crypto.randomUUID(),
+    name: "final_share_generated",
+    checkId: check.id,
+    createdAt: check.finalSharedAt,
+    context: {}
+  });
+  store.resultSnapshots.push({
+    id: crypto.randomUUID(),
+    checkId: check.id,
+    resultTokenHash: check.resultTokenHash,
+    snapshot: result.publicSnapshot,
+    createdAt: check.finalSharedAt
+  });
+  return { check, resultToken, finalMessage: result.finalMessage };
+}
+
 export function markFinalShared(hostToken: string): Promise<{
   check: StoredCheck;
   resultToken: string;
@@ -770,31 +830,18 @@ export function markFinalShared(hostToken: string): Promise<{
 }> {
   return mutateStore((store) => {
     const check = requireCheckByToken(store, hostToken, "hostTokenHash", "host", "Host link not found.");
-    requireUsableCheck(check);
-    const responses = store.responses.filter((response) => response.checkId === check.id);
-    const result = calculateResultSummary(check.draft, responses);
-    if (result.isPrivacySuppressed) {
-      throw new StoreError(409, `Final share is available after ${result.privacyThreshold} private responses.`);
-    }
-    const resultToken = randomToken();
-    check.resultTokenHash = hashToken(resultToken);
-    check.finalSharedAt = now();
-    check.updatedAt = check.finalSharedAt;
-    store.analyticsEvents.push({
-      id: crypto.randomUUID(),
-      name: "final_share_generated",
-      checkId: check.id,
-      createdAt: check.finalSharedAt,
-      context: {}
-    });
-    store.resultSnapshots.push({
-      id: crypto.randomUUID(),
-      checkId: check.id,
-      resultTokenHash: check.resultTokenHash,
-      snapshot: result.publicSnapshot,
-      createdAt: check.finalSharedAt
-    });
-    return { check, resultToken, finalMessage: result.finalMessage };
+    return markFinalSharedForCheckRecord(store, check);
+  });
+}
+
+export function markFinalSharedForOwner(checkId: string, ownerUserId: string): Promise<{
+  check: StoredCheck;
+  resultToken: string;
+  finalMessage: string;
+}> {
+  return mutateStore((store) => {
+    const check = requireOwnerCheck(store, checkId, ownerUserId);
+    return markFinalSharedForCheckRecord(store, check);
   });
 }
 
