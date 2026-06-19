@@ -1,5 +1,7 @@
+import { type NextRequest } from "next/server";
 import { getTheme } from "@sayable/core";
 import { getPreviewByToken } from "@/src/lib/store";
+import { enforceRateLimit } from "@/src/lib/http";
 
 type RouteContext = { params: Promise<{ token: string }> };
 
@@ -83,7 +85,12 @@ function svgTemplate(input: {
 </svg>`;
 }
 
-export async function GET(_request: Request, { params }: RouteContext) {
+function isActiveForPreview(check: { status: string; expiresAt: string }): boolean {
+  return check.status === "active" && new Date(check.expiresAt).getTime() >= Date.now();
+}
+
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  enforceRateLimit(request, "og_preview", { limit: 120, windowMs: 60_000 });
   const { token } = await params;
   let payload = {
     title: "Comfort Check",
@@ -105,7 +112,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
           ...(preview.check.customTheme ? { accent: preview.check.customTheme.accent } : {})
         };
       } else {
-        const isActive = preview.check.status === "active";
+        const isActive = isActiveForPreview(preview.check);
         payload = {
           title: isActive ? preview.check.title : "Comfort Check unavailable",
           eyebrow: `${preview.check.draft.activityLabel} Comfort Check${isActive ? "" : " unavailable"}`,

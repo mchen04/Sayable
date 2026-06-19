@@ -81,6 +81,16 @@ function runStaticContractChecks() {
     ogRoute.includes("getPreviewByToken") && !ogRoute.includes("getPublicCheck") && !ogRoute.includes("getSnapshot"),
     "OG preview must not use token-validation failures as normal control flow"
   );
+  staticAssert(
+    ogRoute.includes('enforceRateLimit(request, "og_preview"') && ogRoute.includes("isActiveForPreview"),
+    "OG preview route must rate-limit public token lookup and account for expiration"
+  );
+
+  const billingWebhook = sourceFile("apps/web/app/api/billing/webhook/route.ts");
+  staticAssert(
+    billingWebhook.includes('enforceRateLimit(request, "billing_webhook"'),
+    "Billing webhook route must rate-limit malformed public requests"
+  );
 
   const nativeHome = sourceFile("apps/mobile/app/index.tsx");
   staticAssert(nativeHome.includes("creatorNonce"), "Native anonymous create must include a persisted creator nonce");
