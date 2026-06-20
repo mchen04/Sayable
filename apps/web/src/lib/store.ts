@@ -843,6 +843,7 @@ export async function adminSnapshot() {
       status: response.status,
       tierId: response.tierId,
       constraintCount: response.constraintIds.length,
+      hasPrivateNote: Boolean(response.privateNote),
       createdAt: response.createdAt,
       updatedAt: response.updatedAt,
       deletedAt: response.deletedAt ?? null

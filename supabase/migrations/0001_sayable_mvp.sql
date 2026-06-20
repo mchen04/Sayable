@@ -21,7 +21,7 @@ create table public.profiles (
 
 create table public.comfort_checks (
   id uuid primary key default gen_random_uuid(),
-  owner_user_id uuid references auth.users(id) on delete set null,
+  owner_user_id text,
   title text not null,
   activity_type text not null check (
     activity_type in ('dinner_drinks', 'birthday', 'casual_hangout', 'tickets_event', 'group_trip', 'home_chill', 'custom')
@@ -71,7 +71,7 @@ create table public.result_snapshots (
 create table public.purchases (
   id uuid primary key default gen_random_uuid(),
   check_id uuid not null references public.comfort_checks(id) on delete cascade,
-  owner_user_id uuid references auth.users(id) on delete set null,
+  owner_user_id text,
   product_type text not null check (product_type = 'premium_check_upgrade'),
   amount_cents integer not null check (amount_cents = 499),
   mode text not null check (mode in ('mock', 'test')),
@@ -85,7 +85,7 @@ create table public.purchases (
 create table public.analytics_events (
   id uuid primary key default gen_random_uuid(),
   check_id uuid references public.comfort_checks(id) on delete set null,
-  owner_user_id uuid references auth.users(id) on delete set null,
+  owner_user_id text,
   event_name text not null,
   context jsonb not null default '{}',
   created_at timestamptz not null default now()
@@ -94,7 +94,7 @@ create table public.analytics_events (
 create table public.audit_logs (
   id uuid primary key default gen_random_uuid(),
   check_id uuid references public.comfort_checks(id) on delete set null,
-  owner_user_id uuid references auth.users(id) on delete set null,
+  owner_user_id text,
   actor_type text not null check (actor_type in ('anonymous', 'guest', 'host', 'demo_user', 'admin', 'system')),
   action text not null,
   detail text not null,
@@ -224,13 +224,13 @@ security definer
 set search_path = public
 as $$
 begin
-  delete from public.audit_logs;
-  delete from public.analytics_events;
-  delete from public.abuse_events;
-  delete from public.result_snapshots;
-  delete from public.purchases;
-  delete from public.responses;
-  delete from public.comfort_checks;
+  delete from public.audit_logs where true;
+  delete from public.analytics_events where true;
+  delete from public.abuse_events where true;
+  delete from public.result_snapshots where true;
+  delete from public.purchases where true;
+  delete from public.responses where true;
+  delete from public.comfort_checks where true;
 
   insert into public.comfort_checks (
     id,
@@ -275,7 +275,7 @@ begin
     row.updated_at
   from jsonb_to_recordset(coalesce(p_checks, '[]'::jsonb)) as row(
     id uuid,
-    owner_user_id uuid,
+    owner_user_id text,
     title text,
     activity_type text,
     plan text,
@@ -360,7 +360,7 @@ begin
   from jsonb_to_recordset(coalesce(p_purchases, '[]'::jsonb)) as row(
     id uuid,
     check_id uuid,
-    owner_user_id uuid,
+    owner_user_id text,
     product_type text,
     amount_cents integer,
     mode text,
@@ -479,7 +479,7 @@ with check (id = auth.uid());
 create policy "owners can read their comfort checks"
 on public.comfort_checks for select
 to authenticated
-using (owner_user_id = auth.uid() and deleted_at is null);
+using (owner_user_id = auth.uid()::text and deleted_at is null);
 
 -- Direct owner updates to comfort_checks are intentionally not granted. Plan,
 -- status, token-hash, retention, draft, and theme mutations must go through
@@ -489,7 +489,7 @@ using (owner_user_id = auth.uid() and deleted_at is null);
 create policy "owners can read redacted purchase rows"
 on public.purchases for select
 to authenticated
-using (owner_user_id = auth.uid());
+using (owner_user_id = auth.uid()::text);
 
 -- No anonymous table policies are defined. Guest, host-token, response-token,
 -- result-token, analytics, audit, abuse, and admin paths must go through API

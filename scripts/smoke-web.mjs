@@ -20,6 +20,7 @@ const port = 3300 + Math.floor(Math.random() * 500);
 const baseUrl = `http://127.0.0.1:${port}`;
 const tempDir = await mkdtemp(path.join(tmpdir(), "sayable-smoke-"));
 const storePath = path.join(tempDir, "store.json");
+const isSupabaseStoreSmoke = process.env.SAYABLE_STORE_BACKEND === "supabase";
 await rm(path.join(process.cwd(), "apps", "web", ".next", "dev"), { recursive: true, force: true });
 
 const env = {
@@ -93,6 +94,14 @@ async function waitForAbuseEvent(route, reason) {
     await sleep(50);
   }
   throw new Error(`abuse event missing: ${route} ${reason}`);
+}
+
+async function adminStoreSnapshot() {
+  const admin = await request("/api/admin", {
+    headers: { "x-sayable-admin-token": "smoke-admin-token" }
+  });
+  assert(admin.response.ok, "admin snapshot failed");
+  return admin.body;
 }
 
 function forgeDemoToken(ownerUserId) {
@@ -597,61 +606,63 @@ async function main() {
     headers: { Authorization: `Bearer ${cancelledReturnSession.token}` }
   });
   assert(cancelledReturnClaim.response.ok, "cancelled return claim failed");
-  const cancelledSessionId = `cs_test_cancel_${crypto.randomUUID()}`;
-  const storeBeforeCancelReturn = JSON.parse(readFileSync(storePath, "utf8"));
-  storeBeforeCancelReturn.purchases.push({
-    id: crypto.randomUUID(),
-    checkId: cancelledReturnClaim.body.check.id,
-    productType: "premium_check_upgrade",
-    amountCents: 499,
-    mode: "test",
-    status: "started",
-    stripeCheckoutSessionId: cancelledSessionId,
-    createdAt: new Date().toISOString()
-  });
-  writeFileSync(storePath, `${JSON.stringify(storeBeforeCancelReturn, null, 2)}\n`);
-  const cancelledReturn = await request(`/api/billing/return?session_id=${cancelledSessionId}&status=cancelled`, {
-    headers: { Authorization: `Bearer ${cancelledReturnSession.token}` }
-  });
-  assert(cancelledReturn.response.ok, "cancelled billing return failed");
-  assert(cancelledReturn.body.status === "cancelled", "cancelled billing return should persist cancellation");
-  const storeAfterCancelReturn = JSON.parse(readFileSync(storePath, "utf8"));
-  const cancelledPurchase = storeAfterCancelReturn.purchases.find(
-    (purchase) => purchase.stripeCheckoutSessionId === cancelledSessionId
-  );
-  assert(cancelledPurchase?.status === "cancelled", "cancelled return should clear started checkout state");
-  assert(
-    !storeAfterCancelReturn.purchases.some(
-      (purchase) => purchase.checkId === cancelledReturnClaim.body.check.id && purchase.status === "started"
-    ),
-    "cancelled return should leave no active checkout for the check"
-  );
-  const completedWebhookPayload = JSON.stringify({
-    type: "checkout.session.completed",
-    data: {
-      object: {
-        id: cancelledSessionId,
-        payment_intent: "pi_smoke_cancelled_then_completed",
-        metadata: {
-          check_id: cancelledReturnClaim.body.check.id,
-          owner_user_id: cancelledReturnSession.ownerUserId
+  if (!isSupabaseStoreSmoke) {
+    const cancelledSessionId = `cs_test_cancel_${crypto.randomUUID()}`;
+    const storeBeforeCancelReturn = JSON.parse(readFileSync(storePath, "utf8"));
+    storeBeforeCancelReturn.purchases.push({
+      id: crypto.randomUUID(),
+      checkId: cancelledReturnClaim.body.check.id,
+      productType: "premium_check_upgrade",
+      amountCents: 499,
+      mode: "test",
+      status: "started",
+      stripeCheckoutSessionId: cancelledSessionId,
+      createdAt: new Date().toISOString()
+    });
+    writeFileSync(storePath, `${JSON.stringify(storeBeforeCancelReturn, null, 2)}\n`);
+    const cancelledReturn = await request(`/api/billing/return?session_id=${cancelledSessionId}&status=cancelled`, {
+      headers: { Authorization: `Bearer ${cancelledReturnSession.token}` }
+    });
+    assert(cancelledReturn.response.ok, "cancelled billing return failed");
+    assert(cancelledReturn.body.status === "cancelled", "cancelled billing return should persist cancellation");
+    const storeAfterCancelReturn = JSON.parse(readFileSync(storePath, "utf8"));
+    const cancelledPurchase = storeAfterCancelReturn.purchases.find(
+      (purchase) => purchase.stripeCheckoutSessionId === cancelledSessionId
+    );
+    assert(cancelledPurchase?.status === "cancelled", "cancelled return should clear started checkout state");
+    assert(
+      !storeAfterCancelReturn.purchases.some(
+        (purchase) => purchase.checkId === cancelledReturnClaim.body.check.id && purchase.status === "started"
+      ),
+      "cancelled return should leave no active checkout for the check"
+    );
+    const completedWebhookPayload = JSON.stringify({
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: cancelledSessionId,
+          payment_intent: "pi_smoke_cancelled_then_completed",
+          metadata: {
+            check_id: cancelledReturnClaim.body.check.id,
+            owner_user_id: cancelledReturnSession.ownerUserId
+          }
         }
       }
-    }
-  });
-  const completedWebhook = await request("/api/billing/webhook", {
-    method: "POST",
-    headers: { "stripe-signature": stripeSignature(completedWebhookPayload) },
-    body: completedWebhookPayload
-  });
-  assert(completedWebhook.response.ok, "completed webhook after cancelled return failed");
-  const completedAfterCancelReturn = await request(`/api/checks/host/${cancelledReturnCheck.hostToken}`);
-  assert(completedAfterCancelReturn.body.check.plan === "premium", "verified webhook should unlock after browser cancel return");
-  const storeAfterCancelCompletion = JSON.parse(readFileSync(storePath, "utf8"));
-  const completedPurchase = storeAfterCancelCompletion.purchases.find(
-    (purchase) => purchase.stripeCheckoutSessionId === cancelledSessionId
-  );
-  assert(completedPurchase?.status === "completed", "verified webhook should complete the cancelled purchase row");
+    });
+    const completedWebhook = await request("/api/billing/webhook", {
+      method: "POST",
+      headers: { "stripe-signature": stripeSignature(completedWebhookPayload) },
+      body: completedWebhookPayload
+    });
+    assert(completedWebhook.response.ok, "completed webhook after cancelled return failed");
+    const completedAfterCancelReturn = await request(`/api/checks/host/${cancelledReturnCheck.hostToken}`);
+    assert(completedAfterCancelReturn.body.check.plan === "premium", "verified webhook should unlock after browser cancel return");
+    const storeAfterCancelCompletion = JSON.parse(readFileSync(storePath, "utf8"));
+    const completedPurchase = storeAfterCancelCompletion.purchases.find(
+      (purchase) => purchase.stripeCheckoutSessionId === cancelledSessionId
+    );
+    assert(completedPurchase?.status === "completed", "verified webhook should complete the cancelled purchase row");
+  }
 
   const queryOnlyDashboard = await request(`/api/dashboard?ownerUserId=demo_smoke_user`);
   assert(queryOnlyDashboard.response.status === 401, "dashboard should reject query-only owner access");
@@ -757,14 +768,25 @@ async function main() {
     body: JSON.stringify({ status: "deleted" })
   });
   assert(deletedPatch.response.ok, `delete check failed: ${deletedPatch.response.status} ${JSON.stringify(deletedPatch.body)}`);
-  const storeAfterCheckDelete = JSON.parse(readFileSync(storePath, "utf8"));
-  const deletedCheckRecord = storeAfterCheckDelete.checks.find((check) => check.id === deletedPatch.body.check.id);
-  const anonymizedResponses = storeAfterCheckDelete.responses.filter((response) => response.checkId === deletedPatch.body.check.id);
-  assert(deletedCheckRecord?.status === "deleted", "deleted check status did not persist");
-  assert(anonymizedResponses.length === 1, "delete-check response setup missing from store");
-  assert(anonymizedResponses[0].deletedAt, "delete-check should mark associated response deleted");
-  assert(!anonymizedResponses[0].privateNote, "delete-check should clear associated private note");
-  assert(anonymizedResponses[0].constraintIds.length === 0, "delete-check should clear associated constraints");
+  if (isSupabaseStoreSmoke) {
+    const storeAfterCheckDelete = await adminStoreSnapshot();
+    const deletedCheckRecord = storeAfterCheckDelete.checks.find((check) => check.id === deletedPatch.body.check.id);
+    const anonymizedResponses = storeAfterCheckDelete.responses.filter((response) => response.checkId === deletedPatch.body.check.id);
+    assert(deletedCheckRecord?.status === "deleted", "deleted check status did not persist");
+    assert(anonymizedResponses.length === 1, "delete-check response setup missing from store");
+    assert(anonymizedResponses[0].deletedAt, "delete-check should mark associated response deleted");
+    assert(!anonymizedResponses[0].hasPrivateNote, "delete-check should clear associated private note");
+    assert(anonymizedResponses[0].constraintCount === 0, "delete-check should clear associated constraints");
+  } else {
+    const storeAfterCheckDelete = JSON.parse(readFileSync(storePath, "utf8"));
+    const deletedCheckRecord = storeAfterCheckDelete.checks.find((check) => check.id === deletedPatch.body.check.id);
+    const anonymizedResponses = storeAfterCheckDelete.responses.filter((response) => response.checkId === deletedPatch.body.check.id);
+    assert(deletedCheckRecord?.status === "deleted", "deleted check status did not persist");
+    assert(anonymizedResponses.length === 1, "delete-check response setup missing from store");
+    assert(anonymizedResponses[0].deletedAt, "delete-check should mark associated response deleted");
+    assert(!anonymizedResponses[0].privateNote, "delete-check should clear associated private note");
+    assert(anonymizedResponses[0].constraintIds.length === 0, "delete-check should clear associated constraints");
+  }
   const deletedGuest = await request(`/api/checks/guest/${deletedCheck.guestToken}`);
   assert(deletedGuest.response.status === 410, "deleted guest link should show deleted state");
   const deletedHost = await request(`/api/checks/host/${deletedCheck.hostToken}`);
@@ -782,17 +804,19 @@ async function main() {
   const stillDeletedGuest = await request(`/api/checks/guest/${deletedCheck.guestToken}`);
   assert(stillDeletedGuest.response.status === 410, "deleted guest link should stay deleted after resurrection attempt");
 
-  const expiredCheck = await createCheck("group_trip", 42);
-  const store = JSON.parse(readFileSync(storePath, "utf8"));
-  const record = store.checks.find((check) => check.hostTokenHash === store.checks.at(-1).hostTokenHash);
-  record.expiresAt = "2000-01-01T00:00:00.000Z";
-  writeFileSync(storePath, `${JSON.stringify(store, null, 2)}\n`);
-  const expiredGuest = await request(`/api/checks/guest/${expiredCheck.guestToken}`);
-  assert(expiredGuest.body.check.status === "expired", "expired guest link should show expired status");
-  const expiredHost = await request(`/api/checks/host/${expiredCheck.hostToken}`);
-  assert(expiredHost.body.check.status === "expired", "expired host link should show expired status");
-  const expiredShare = await request(`/api/checks/host/${expiredCheck.hostToken}/final-share`, { method: "POST" });
-  assert(expiredShare.response.status === 410, "expired check should reject final share");
+  if (!isSupabaseStoreSmoke) {
+    const expiredCheck = await createCheck("group_trip", 42);
+    const store = JSON.parse(readFileSync(storePath, "utf8"));
+    const record = store.checks.find((check) => check.hostTokenHash === store.checks.at(-1).hostTokenHash);
+    record.expiresAt = "2000-01-01T00:00:00.000Z";
+    writeFileSync(storePath, `${JSON.stringify(store, null, 2)}\n`);
+    const expiredGuest = await request(`/api/checks/guest/${expiredCheck.guestToken}`);
+    assert(expiredGuest.body.check.status === "expired", "expired guest link should show expired status");
+    const expiredHost = await request(`/api/checks/host/${expiredCheck.hostToken}`);
+    assert(expiredHost.body.check.status === "expired", "expired host link should show expired status");
+    const expiredShare = await request(`/api/checks/host/${expiredCheck.hostToken}/final-share`, { method: "POST" });
+    assert(expiredShare.response.status === 410, "expired check should reject final share");
+  }
 
   const ownerCapSession = await demoSession();
   const ownerCapStatuses = [];
