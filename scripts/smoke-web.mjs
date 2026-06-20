@@ -909,6 +909,10 @@ try {
   await main();
 } catch (error) {
   console.error(error);
+  if (serverOutput) {
+    console.error("\n--- Next server output ---\n");
+    console.error(serverOutput);
+  }
   process.exitCode = 1;
 } finally {
   if (server.exitCode === null && !server.killed) {

@@ -1,6 +1,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
+import WebSocket from "ws";
 
 function loadEnvFile(path) {
   if (!existsSync(path)) {
@@ -71,6 +72,9 @@ async function checkServerStore() {
     auth: {
       persistSession: false,
       autoRefreshToken: false
+    },
+    realtime: {
+      transport: WebSocket
     }
   });
 
@@ -111,6 +115,10 @@ try {
   process.exit(status.ok ? 0 : 1);
 } catch (error) {
   status.error = error instanceof Error ? error.message : String(error);
+  if (status.error.includes("comfort_checks") && status.error.includes("schema cache")) {
+    status.hint =
+      "Apply supabase/migrations/0001_sayable_mvp.sql with a Supabase database connection string before enabling SAYABLE_STORE_BACKEND=supabase.";
+  }
   console.log(JSON.stringify(status, null, 2));
   process.exit(1);
 }

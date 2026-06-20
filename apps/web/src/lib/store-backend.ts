@@ -3,7 +3,8 @@ import "server-only";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient, type SupabaseClientOptions } from "@supabase/supabase-js";
+import WebSocket from "ws";
 import {
   type AbuseEvent,
   type AnalyticsEvent,
@@ -21,10 +22,12 @@ function resolveStorePath(): string {
   if (configuredPath) {
     return configuredPath;
   }
-  return path.join(process.cwd(), ".sayable-data", "store.json");
+  return path.join(/*turbopackIgnore: true*/ process.cwd(), ".sayable-data", "store.json");
 }
 
 const STORE_PATH = resolveStorePath();
+type RealtimeTransport = NonNullable<NonNullable<SupabaseClientOptions<"public">["realtime"]>["transport"]>;
+const WebSocketTransport = WebSocket as unknown as RealtimeTransport;
 let supabaseStoreClient: SupabaseClient | undefined;
 let supabaseRealtimeClient: SupabaseClient | undefined;
 let storeMutationQueue: Promise<void> = Promise.resolve();
@@ -150,6 +153,9 @@ function getSupabaseStoreClient(): SupabaseClient {
     auth: {
       persistSession: false,
       autoRefreshToken: false
+    },
+    realtime: {
+      transport: WebSocketTransport
     }
   });
   return supabaseStoreClient;
@@ -168,6 +174,9 @@ function getSupabaseRealtimeClient(): SupabaseClient | null {
     auth: {
       persistSession: false,
       autoRefreshToken: false
+    },
+    realtime: {
+      transport: WebSocketTransport
     }
   });
   return supabaseRealtimeClient;
@@ -564,16 +573,43 @@ async function emitCheckChange(checkId: string): Promise<void> {
     }
   });
   await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("Supabase Realtime broadcast timed out.")), 1500);
+    let settled = false;
+    let cleanupStarted = false;
+    const cleanup = () => {
+      if (cleanupStarted) {
+        return;
+      }
+      cleanupStarted = true;
+      void client.removeChannel(channel).catch((error) => {
+        console.error("Sayable realtime channel cleanup failed", error);
+      });
+    };
+    const fail = (error: Error) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      cleanup();
+      reject(error);
+    };
+    const timer = setTimeout(() => fail(new Error("Supabase Realtime broadcast timed out.")), 1500);
     channel.subscribe(async (status) => {
+      if (settled) {
+        return;
+      }
       if (status === "SUBSCRIBED") {
         const result = await channel.send({
           type: "broadcast",
           event: "check_changed",
           payload: { checkId, updatedAt: now() }
         });
+        if (settled) {
+          return;
+        }
+        settled = true;
         clearTimeout(timer);
-        await client.removeChannel(channel);
+        cleanup();
         if (result === "ok") {
           resolve();
           return;
@@ -581,9 +617,7 @@ async function emitCheckChange(checkId: string): Promise<void> {
         reject(new Error("Supabase Realtime broadcast failed."));
       }
       if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-        clearTimeout(timer);
-        await client.removeChannel(channel);
-        reject(new Error(`Supabase Realtime channel ${status.toLowerCase()}.`));
+        fail(new Error(`Supabase Realtime channel ${status.toLowerCase()}.`));
       }
     });
   });

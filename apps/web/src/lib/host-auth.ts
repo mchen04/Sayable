@@ -1,7 +1,8 @@
 import "server-only";
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient, type SupabaseClientOptions } from "@supabase/supabase-js";
 import { type NextRequest } from "next/server";
+import WebSocket from "ws";
 import { isDemoAuthEnabled, verifyDemoToken } from "./demo-auth";
 import { StoreError } from "./store-types";
 
@@ -12,6 +13,8 @@ export interface HostSession {
 }
 
 let supabaseAuthClient: SupabaseClient | undefined;
+type RealtimeTransport = NonNullable<NonNullable<SupabaseClientOptions<"public">["realtime"]>["transport"]>;
+const WebSocketTransport = WebSocket as unknown as RealtimeTransport;
 
 function bearerToken(request: NextRequest): string {
   const authorization = request.headers.get("authorization") || "";
@@ -35,6 +38,9 @@ function getSupabaseAuthClient(): SupabaseClient {
     auth: {
       persistSession: false,
       autoRefreshToken: false
+    },
+    realtime: {
+      transport: WebSocketTransport
     }
   });
   return supabaseAuthClient;

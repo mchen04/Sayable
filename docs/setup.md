@@ -31,6 +31,14 @@ Expo config is generated from `apps/mobile/app.config.js`; set `EXPO_PUBLIC_WEB_
 
 Apply `supabase/migrations/0001_sayable_mvp.sql` in the owned Supabase project. RLS is enabled on all MVP tables. Anonymous direct table access is intentionally not granted; public token flows must go through server routes or Edge Functions that hash and validate tokens.
 
+To apply the migration from this repo, use a Supabase Postgres connection string or a linked Supabase CLI project with database admin access. In the Supabase dashboard, open the project, go to **Project Settings > Database > Connection string**, copy the URI connection string, replace `[YOUR-PASSWORD]` with the database password, then run:
+
+```bash
+supabase db query --db-url "$SUPABASE_DB_URL" --file supabase/migrations/0001_sayable_mvp.sql
+```
+
+The publishable key and server API key are runtime credentials; they do not create missing tables or functions.
+
 Local no-secret smoke uses the file backend:
 
 ```bash
