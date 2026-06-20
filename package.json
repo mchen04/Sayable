@@ -14,6 +14,7 @@
     "lint": "npm run lint -ws --if-present",
     "test": "npm run test -ws --if-present",
     "test:mutations": "node scripts/core-mutation-smoke.mjs",
+    "check:supabase": "node scripts/check-supabase-runtime.mjs",
     "guard:no-llm": "node scripts/no-llm-guard.mjs",
     "smoke:web": "node scripts/smoke-web.mjs",
     "build": "npm run build -ws --if-present",
