@@ -116,6 +116,6 @@ Run with the web server at `http://localhost:3000`.
 
 `npm audit --audit-level=high` passes on the current Next 16 / Expo 56 / React 19 stack. `npm audit` still reports moderate/low transitive advisories in current framework chains, tracked in `validation/adversarial-loops.md`.
 
-## Required remaining gates
+## Final validation gates
 
-The implementation contract requires independent-context adversarial convergence loops and `/criticality-loop` convergence 2 before the goal can be marked complete. Current status is tracked in `validation/adversarial-loops.md`.
+The implementation contract requires independent-context adversarial convergence loops and `/criticality-loop` convergence 2 before the goal can be marked complete. Those gates are recorded as converged in `validation/adversarial-loops.md`; `/criticality-loop` convergence is recorded in `criticality-loop.log.md`.

@@ -411,7 +411,12 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
           </div>
 
           <details className="tool-panel stack">
-            <summary>Fine-tune questions</summary>
+            <summary>
+              <span className="summary-copy">
+                <span>Fine-tune questions</span>
+                <span className="summary-hint">{questions.length} prompts generated. Open to adjust wording.</span>
+              </span>
+            </summary>
             {questions.map((question, index) => (
               <div className="stack status-note" key={question.id}>
                 <div className="field">
@@ -462,7 +467,12 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
           </details>
 
           <details className="tool-panel stack">
-            <summary>Fine-tune comfort tiers</summary>
+            <summary>
+              <span className="summary-copy">
+                <span>Fine-tune comfort tiers</span>
+                <span className="summary-hint">{tiers.length} answer tiers. Open to rename options.</span>
+              </span>
+            </summary>
             {tiers.map((tier, index) => (
               <div className="stack choice" key={tier.id}>
                 <span className="pill">{tier.score}</span>
@@ -573,7 +583,12 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
       </div>
 
       <details className="section-band stack">
-        <summary>Edit generated constraints</summary>
+        <summary>
+          <span className="summary-copy">
+            <span>Edit generated constraints</span>
+            <span className="summary-hint">{constraints.length} guest blockers. Open to add, rename, or remove.</span>
+          </span>
+        </summary>
         <div className="section-heading">
           <p>Free checks allow {getPlanLimits("free").maxCustomConstraints} custom constraints. Premium allows 10.</p>
         </div>

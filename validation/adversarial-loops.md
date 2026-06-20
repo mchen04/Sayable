@@ -5,14 +5,14 @@ Implementation contract requires convergence 2 for every loop below. This file r
 ## Current command evidence
 
 - `npm install`: pass on June 19, 2026 after upgrading to Next 16.2.9, Expo 56.0.12, React 19.2.7, React Native 0.86.0, and ESLint 9.39.4.
-- `npm run typecheck`: pass on June 19, 2026.
-- `npm run lint`: pass on June 19, 2026.
+- `npm run typecheck`: pass on June 19, 2026 after the final guest-response/host-review UI polish fix.
+- `npm run lint`: pass on June 19, 2026 after the final guest-response/host-review UI polish fix.
 - `npm run test`: pass on June 19, 2026; 40 core tests across golden, scenario, full required cross-product matrix, stress, all-activity oracle, explicit axis matrix, custom constraint boundaries, seeded, load-like, metamorphic, deterministic snapshot, mutation sentinel, corrupted runtime edge, and no-LLM-adjacent guard coverage.
 - `npm run test:mutations`: pass on June 19, 2026; copies `packages/core` into temporary workspaces, runs web/API mutations from an isolated temporary repo copy, applies 15 targeted source mutations, and verifies tests/smoke catch all 15 without patching the live working tree.
-- `npm run build`: pass on June 19, 2026; Next warns that the file-backed local MVP store triggers a Turbopack NFT tracing warning.
+- `npm run build`: pass on June 19, 2026 after the final guest-response/host-review UI polish fix; Next warns that the file-backed local MVP store triggers a Turbopack NFT tracing warning.
 - `npm run guard:no-llm`: pass on June 19, 2026; no LLM SDK dependencies or model API source paths detected.
 - `npm run smoke:web`: pass on June 19, 2026; starts Next on an isolated port with temp storage and verifies all seven activity create flows, signed demo auth boundaries, guest submit/edit/delete/duplicate delete, browser-nonce duplicate response rejection without blocking same-source different-nonce guests, 12 parallel accepted submissions persisting as 12 responses, edited/deleted aggregate updates, invalid token/payload handling, 4-response privacy threshold aggregation with qualitative constraint signals only, suppressed final-share rejection, immutable snapshot safety, response-delete snapshot revocation, premium mock owner enforcement/theme persistence/activity-theme default, terminal closed-check upgrade rejection, upgrade-after-edit preservation, admin auth and malformed JSON handling, generated question/tier edit/reset, deleted-constraint aggregate removal, deleted-check terminal behavior plus response anonymization, closed/deleted/expired failures, free 30-response cap, premium 100-response cap, and signed-host/account deletion support through the current API surface.
-- `npm run verify`: pass on June 19, 2026 after the latest host-review share/copy telemetry, result not-found canonical/URL metadata, native PNG launch asset, responsive/accessibility CSS, and OG/guest-layout polish fixes; includes `typecheck`, `lint`, `guard:no-llm`, 40 core tests, 15 caught mutation smoke cases, `smoke:web` with long-title OG wrapping assertion, and production build. Next still warns that the file-backed local MVP store triggers a Turbopack NFT tracing warning.
+- `npm run verify`: pass on June 19, 2026 after the final guest-response/host-review UI polish fix; includes `typecheck`, `lint`, `guard:no-llm`, 40 core tests, 15 caught mutation smoke cases, `smoke:web` with long-title OG wrapping assertion, and production build. Next still warns that the file-backed local MVP store triggers a Turbopack NFT tracing warning.
 - `npm audit --audit-level=high`: pass on June 19, 2026 after the framework upgrade. Plain `npm audit` still reports 14 low/moderate transitive advisories: esbuild dev-server Windows arbitrary-read advisory, Next-bundled PostCSS moderate advisory, and Expo/xcode uuid moderate advisory chain.
 
 ## Agent-browser smoke evidence
@@ -39,6 +39,8 @@ Additional browser evidence and remaining browser gaps:
 - Full production viewport matrix now ran on June 19, 2026 against `next start`: `390x844`, `844x390`, `360x740`, `768x1024`, `1024x768`, `1440x900`, and `1024x700` across landing, host review, guest response, and host results pages. Automated checks found no horizontal scroll and no clipped interactive controls across 28 page/viewport combinations.
 - Scoped localhost `/agent-browser` pass `sayable-localhost-3861-ui-55452` ran on June 19, 2026 against `http://localhost:3861`, then was closed and Chrome-for-Testing/agent-browser processes were killed. It verified landing/create, generated host review, seeded guest mobile, host results desktop/mobile, and public result desktop/mobile. Screenshots inspected: `/tmp/sayable-host-review-desktop.png`, `/tmp/sayable-guest-mobile.png`, `/tmp/sayable-host-results-desktop.png`, `/tmp/sayable-public-result-desktop.png`, `/tmp/sayable-host-results-mobile.png`, and `/tmp/sayable-public-result-mobile.png`.
 - The localhost browser pass confirmed the post-fix visual issues no longer reproduce in the checked surfaces: long titles wrap inside host/result/public result layouts, the guest intro pill no longer stretches on the response form, result controls stack cleanly on mobile, and the public result snapshot exposes only group-safe aggregate information.
+- Scoped localhost `/agent-browser` pass `sayable-final-localhost-3861` ran on June 19, 2026 against an isolated `http://127.0.0.1:3861` production server, then was closed. It captured landing desktop, host review desktop, host results desktop, public result desktop/mobile, and guest mobile screenshots: `/tmp/sayable-final-landing-desktop.png`, `/tmp/sayable-final-review-desktop.png`, `/tmp/sayable-final-host-results-desktop.png`, `/tmp/sayable-final-public-result-desktop.png`, `/tmp/sayable-final-public-result-mobile.png`, and `/tmp/sayable-final-guest-mobile.png`.
+- Scoped localhost `/agent-browser` pass `sayable-ui-fix-localhost-3861` ran on June 19, 2026 against the rebuilt isolated `http://127.0.0.1:3861` production server after the guest-response/host-review polish fix, then was closed. It captured `/tmp/sayable-ui-fix-landing-desktop.png`, `/tmp/sayable-ui-fix-review-desktop.png`, `/tmp/sayable-ui-fix-host-results-desktop.png`, `/tmp/sayable-ui-fix-public-result-desktop.png`, `/tmp/sayable-ui-fix-public-result-mobile.png`, and `/tmp/sayable-ui-fix-guest-mobile.png`; no browser errors were reported.
 - All seven day-one activity create flows are HTTP-smoked by `smoke:web`; they are not all manual browser-smoked.
 - Keyboard-only flow and screen reader labeling not yet independently audited.
 - Native Expo app not yet browser/device-smoked.
@@ -47,7 +49,7 @@ Additional browser evidence and remaining browser gaps:
 
 | Loop | Status |
 | --- | --- |
-| UI judge | Latest independent cycle FAIL because screenshot artifact capture/server stability blocked the UI score; scoped localhost main-agent browser pass after fixes was visually clean but does not count toward independent convergence; pass streak 0 |
+| UI judge | Convergence 2 satisfied after guest-response/host-review polish fix; final independent passes scored 8.7/10 and 8.8/10 |
 | Functionality adversary | Convergence 2 satisfied |
 | Responsive viewport | Convergence 2 satisfied |
 | Security adversary | Convergence 2 satisfied |
@@ -59,14 +61,14 @@ Additional browser evidence and remaining browser gaps:
 | Accessibility | Convergence 2 satisfied |
 | Failure-state | Convergence 2 satisfied |
 | Observability/analytics | Convergence 2 satisfied |
-| UX/ease-of-use | Latest current-tree independent cycle PASS; scoped localhost main-agent browser pass confirmed core flow readability; convergence 2 still required |
-| Gen Z aesthetic/theme/landing | Latest independent cycle FAIL; fixed OG text clipping and guest desktop pill stretch, and scoped localhost main-agent browser pass confirmed those issues no longer reproduce; independent rerun required |
+| UX/ease-of-use | Convergence 2 satisfied after second independent PASS on landing/create, host review/share/results, guest response, public result, privacy copy, and mobile ergonomics |
+| Gen Z aesthetic/theme/landing | Convergence 2 satisfied after final independent passes scored 8.5/10 and 8.5/10 on the rebuilt visual surfaces |
 | Giga deterministic core logic stress | Cycle 7 APPROVE; convergence 2 satisfied for deterministic core surfaces |
-| `/criticality-loop` | Not yet run |
+| `/criticality-loop` | Convergence 2 satisfied after cycles 17 and 18 returned APPROVE with zero findings; see `criticality-loop.log.md` |
 
 ## Completion note
 
-Do not mark the goal complete until each loop has two consecutive independent passing cycles and this file includes cycle number, reviewer role, reviewed surfaces, findings, fixes, pass/fail, and remaining risk.
+All required adversarial loops and `/criticality-loop` now have two consecutive independent passing cycles recorded. Remaining notes below are historical residual risks or launch/deployment dependencies, not open convergence blockers.
 
 ## Independent Cycle 1 Findings And Fixes
 
@@ -898,3 +900,145 @@ Residual risks:
 Still remaining:
 
 - Section 8.9 has two consecutive independent PASS cycles after the native PNG asset fix and is converged.
+
+UX/ease-of-use convergence rerun `019ee247-6da8-7af3-a423-6f595837c63f`: PASS.
+
+Reviewer evidence:
+
+- Reviewed landing/create, host review/share/results, guest private response form, public result desktop/mobile, privacy/trust copy, mobile ergonomics, and obvious next actions using rebuilt localhost screenshots plus local source/docs.
+- Verified landing desktop exposes both direct CTAs and inline creation form: `Start creating`, `View guest/result example`, and `Create a Comfort Check`.
+- Verified host review makes the main path clear with ready-to-share copy, link preview, `Share in Messages`, `Copy link`, and `Results`.
+- Verified host results provides clear next actions: result summary, grouped constraints, public-safe snapshot, `Share final message`, `Copy text`, and `Share guest link`.
+- Verified guest mobile is understandable and trust-forward with private-link/no-account copy, simple radio/checkbox choices, private note, `Submit privately`, and reset/update/delete paths.
+- Verified public result is concise and public-safe, and privacy copy is consistent across product/policy surfaces.
+
+Residual risks:
+
+- The reviewer did not perform live interaction or browser automation by instruction; this pass used supplied screenshots plus source/docs.
+- Host review/results mobile screenshots were not part of that reviewer packet, though responsive CSS and previous viewport evidence cover those routes.
+
+Still remaining:
+
+- Section 8.13 has two consecutive independent PASS cycles and is converged.
+
+Gen Z aesthetic/theme/landing rerun `019ee247-941a-7933-9441-e0c18e1e2878`: PASS.
+
+Reviewer evidence:
+
+- Scored the aesthetic/theme pass at `8.3/10`.
+- Reviewed landing desktop, host review/theme/premium desktop, host results desktop, guest mobile, public result desktop/mobile, and local landing/theme/OG/guest-layout source/docs.
+- Verified landing is action-first, group-chat/iMessage positioning is visible, all required starter themes are present and readable, activity theme defaults are covered, and premium/custom theme surfaces are coherent.
+- Verified previous OG clipping risk is covered by bounded `<tspan>` wrapping and smoke assertions, and previous guest desktop pill-stretch risk is covered by `.guest-response-grid { align-items: start; }`.
+
+Residual risks:
+
+- The aesthetic is polished and social but more restrained than a high-energy consumer app.
+- Premium-unlocked custom color/icon controls and desktop guest response were source-supported rather than freshly screenshot-reviewed in this cycle.
+
+Still remaining:
+
+- This was the first independent PASS after the previous aesthetic/theme failure; Section 8.14 still needed one consecutive PASS on the current tree.
+
+Gen Z aesthetic/theme/landing convergence rerun `019ee24a-aef9-78e1-b405-b9e53b93babb`: PASS.
+
+Reviewer evidence:
+
+- Scored the aesthetic/theme pass at `8.4/10`.
+- Reviewed landing desktop, host review/theme preview desktop, host results desktop, guest mobile, public result desktop/mobile, local theme/OG source files, and placeholder/default asset searches.
+- Verified landing is action-oriented and product-first, the group-chat/iMessage positioning is explicit, required starter themes exist and are gated, premium/custom theme surfaces are present, prior OG/guest-layout blockers appear fixed, and no default Next/Vercel/Expo placeholder assets remain.
+
+Residual risks:
+
+- The reviewer did not run browser automation or tests by instruction; verdict relied on provided screenshots plus source/docs.
+- Only the seeded/default-theme flow was visually reviewed, not every premium theme rendered end-to-end.
+
+Still remaining:
+
+- Section 8.14 had two independent PASS cycles after the OG/guest-layout fixes, but later UI polish changed the guest/host visual surfaces, so the final two combined UI/theme reviewers below rechecked Section 8.14 on the rebuilt tree.
+
+UI judge rerun `019ee246-c301-71c1-b07f-00b1a7fe0075`: PASS.
+
+Reviewer evidence:
+
+- Scored the UI pass at `8.6/10`.
+- Reviewed landing desktop, host review desktop, host results desktop, guest response mobile, public result desktop, and public result mobile using `sayable-final-localhost-3861` screenshots and local source.
+- Found no clipped text, text/control overlaps, horizontal overflow, unreadable buttons, or broken responsive layout.
+- Verified mobile guest form fit the viewport, public result stacked correctly on mobile, and host results/review controls did not collide.
+
+Residual risks:
+
+- The reviewer did not interact with hover/focus/open details/share-sheet/error states by instruction.
+- Screenshots did not cover landing mobile, host review mobile, dashboard, invalid/closed/deleted states, or extreme long strings.
+
+Still remaining:
+
+- A second independent UI reviewer found a polish blocker below, so this PASS did not start a completed convergence streak.
+
+UI judge rerun `019ee24a-8b39-7f92-92b4-ec0660af35ab`: FAIL.
+
+Blocking findings:
+
+- Guest mobile response UI still used raw native `fieldset`/`legend` chrome. The gray boxes and border legends read as default browser UI on the primary guest flow.
+- Host review desktop closed fine-tune panels looked like empty placeholder cards with weak disclosure affordance.
+
+Fixed after review:
+
+- Replaced guest response `fieldset` styling with custom `.question-group` cards and `.question-title` legend styling in `apps/web/app/globals.css` and `apps/web/components/GuestCheckClient.tsx`.
+- Added host review details summary descriptions and custom expand controls for generated questions, comfort tiers, constraints, and checkout test states in `apps/web/components/HostReviewClient.tsx` and `apps/web/app/globals.css`.
+- Rebuilt the production app and reran scoped localhost `/agent-browser` pass `sayable-ui-fix-localhost-3861` against an isolated `http://127.0.0.1:3861` server.
+
+Still remaining:
+
+- The UI pass streak reset after this failure; two fresh independent UI passes were required on the rebuilt screenshots.
+
+UI/theme convergence reviewer A `019ee24e-f153-7a72-a474-454c3bdd65b0`: PASS.
+
+Reviewer evidence:
+
+- Section 8.1 UI judge score: `8.7/10`.
+- Section 8.14 Gen Z aesthetic/theme/landing score: `8.5/10`.
+- Reviewed landing desktop, host review desktop, host results desktop, guest mobile response form, public result desktop/mobile, theme definitions, and OG wrapping source using rebuilt screenshots only.
+- Verified guest mobile question groups no longer look like browser defaults, host review details no longer appear empty, host/public result pages are visually complete and privacy-safe, landing is action-first/product-specific, visual system is coherent across surfaces, and theme coverage is varied across default and premium themes.
+
+Residual risks:
+
+- The reviewer did not interact with open/closed details states, focus states, or submit flows by instruction.
+- Desktop guest response, mobile host review, and rendered OG/share image were not in the provided final screenshot set.
+
+Still remaining:
+
+- This was the first independent UI PASS after the final polish fix; one additional independent UI PASS was required.
+
+UI/theme convergence reviewer B `019ee24f-1997-7b00-a930-48fec190ab5c`: PASS.
+
+Reviewer evidence:
+
+- Section 8.1 UI judge score: `8.8/10`.
+- Section 8.14 Gen Z aesthetic/theme/landing score: `8.5/10`.
+- Reviewed landing desktop, host review desktop, host results desktop, guest response mobile, public result desktop/mobile, and scoped source diff in `apps/web/app/globals.css`, `apps/web/components/GuestCheckClient.tsx`, and `apps/web/components/HostReviewClient.tsx`.
+- Verified guest mobile no longer reads as raw fieldset/browser chrome, host review collapsed details now show labels/generated-count hints/clear `+` affordance, host/public result cards are populated and readable, no obvious clipping or horizontal overflow appears, landing remains action-oriented, and the new summaries/question groups improve polish without disrupting the iMessage-adjacent theme system.
+
+Residual risks:
+
+- The reviewer did not interact with the app, open collapsed details, verify focus states, or inspect host-review mobile/guest desktop screenshots by instruction.
+- Current screenshots did not include a fresh OG/share-preview raster, so OG long-text safety remains source/test-backed.
+
+Still remaining:
+
+- Sections 8.1 and 8.14 each have two consecutive independent PASS cycles on the rebuilt tree and are converged.
+
+Criticality loop `criticality-loop.log.md`: APPROVE convergence 2.
+
+Reviewer evidence:
+
+- Cycle 17 returned APPROVE with zero findings; the fresh auditor also ran `npm run typecheck`, `npm run lint`, and `npm run guard:no-llm` without browser automation.
+- Cycle 18 returned APPROVE with zero findings; the fresh auditor ran `npm run guard:no-llm` and used no Chrome/browser automation.
+- The loop exited after two consecutive APPROVE cycles. See `criticality-loop.log.md` for all 18 cycles and fix history.
+
+Residual risks:
+
+- `npm run verify` passed after the final UI polish fix; the clean criticality cycles used read-only checks and are recorded in `criticality-loop.log.md`.
+
+Still remaining:
+
+- `/criticality-loop` convergence 2 is satisfied.

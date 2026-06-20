@@ -243,8 +243,8 @@ export default function GuestCheckClient({ guestToken }: { guestToken: string })
         </section>
 
         <section className="form-panel stack" aria-label="Guest response form">
-          <fieldset className="stack" disabled={unavailable}>
-            <legend className="legend">{data.check.draft.questions[0]?.prompt}</legend>
+          <fieldset className="question-group" disabled={unavailable}>
+            <legend className="legend question-title">{data.check.draft.questions[0]?.prompt}</legend>
             {(["in", "maybe", "out"] as const).map((status) => (
               <label className="choice" key={status}>
                 <input
@@ -267,8 +267,8 @@ export default function GuestCheckClient({ guestToken }: { guestToken: string })
             ))}
           </fieldset>
 
-          <fieldset className="stack" disabled={unavailable}>
-            <legend className="legend">{data.check.draft.questions[1]?.prompt}</legend>
+          <fieldset className="question-group" disabled={unavailable}>
+            <legend className="legend question-title">{data.check.draft.questions[1]?.prompt}</legend>
             {data.check.draft.tiers.map((tier) => (
               <label className="choice" key={tier.id}>
                 <input
@@ -285,8 +285,8 @@ export default function GuestCheckClient({ guestToken }: { guestToken: string })
             ))}
           </fieldset>
 
-          <fieldset className="stack" disabled={unavailable}>
-            <legend className="legend">{data.check.draft.questions[2]?.prompt}</legend>
+          <fieldset className="question-group" disabled={unavailable}>
+            <legend className="legend question-title">{data.check.draft.questions[2]?.prompt}</legend>
             {data.check.draft.constraints.map((constraint) => (
               <label className="choice" key={constraint.id}>
                 <input
