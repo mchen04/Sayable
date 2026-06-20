@@ -9,7 +9,7 @@ cp .env.example apps/web/.env.local
 npm run dev:web
 ```
 
-Set `NEXT_PUBLIC_WEB_BASE_URL` to the externally reachable deployment URL before sharing real links. The root `.env.local` is used by repo scripts such as `npm run check:supabase`; the Next.js workspace app loads `apps/web/.env.local` when run through `npm run dev:web`, `npm run build`, or `npm run start -w @sayable/web`.
+Set `NEXT_PUBLIC_WEB_BASE_URL` to the externally reachable deployment URL before sharing real links. The Next.js workspace app loads `apps/web/.env.local` when run through `npm run dev:web`, `npm run build`, or `npm run start -w @sayable/web`; repo scripts such as `npm run check:supabase` read both root and `apps/web` env files.
 
 For local demo Google-session signing, set a random secret:
 

@@ -26,6 +26,8 @@ function loadEnvFile(path) {
 
 loadEnvFile(resolve(process.cwd(), ".env"));
 loadEnvFile(resolve(process.cwd(), ".env.local"));
+loadEnvFile(resolve(process.cwd(), "apps/web/.env"));
+loadEnvFile(resolve(process.cwd(), "apps/web/.env.local"));
 
 const required = [
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -37,7 +39,7 @@ const required = [
 const missing = required.filter((name) => !process.env[name]);
 const serviceRoleKey = process.env.SAYABLE_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!serviceRoleKey) {
-  missing.push("SAYABLE_SUPABASE_SERVICE_ROLE_KEY");
+  missing.push("SAYABLE_SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SERVICE_ROLE_KEY");
 }
 if (process.env.SAYABLE_STORE_BACKEND && process.env.SAYABLE_STORE_BACKEND !== "supabase") {
   missing.push("SAYABLE_STORE_BACKEND=supabase");
