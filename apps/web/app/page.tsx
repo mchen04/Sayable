@@ -11,15 +11,18 @@ export default function LandingPage() {
             iMessage-first group planning
           </span>
           <h1>Comfort Check</h1>
+          <p className="hero-tagline">
+            A private, one-tap read on whether the group is actually comfortable with a plan — before you lock it in.
+          </p>
           <p>
-            Before you lock in dinner, tickets, a birthday plan, or a trip, send one private Sayable link. Guests answer
-            without accounts, and the host gets the group-safe takeaway.
+            Send one Sayable link for dinner, tickets, a birthday, or a trip. Guests answer without accounts, and you get
+            the group-safe takeaway — no names, no budget answers, no private notes.
           </p>
           <div className="hero-actions">
-            <a className="btn btn-primary" href="#create">
+            <a className="btn btn-secondary" href="#create">
               Start creating
             </a>
-            <a className="btn btn-secondary" href="#example-flow">
+            <a className="btn btn-ghost" href="#example-flow">
               View guest/result example
             </a>
           </div>
@@ -60,7 +63,7 @@ export default function LandingPage() {
                   <span className="mini-dot" />
                   Easy yes
                 </div>
-                <div className="mini-choice">Keep the bill comfortable</div>
+                <div className="mini-choice">A comfortable bill</div>
               </div>
               <div className="flow-card">
                 <span className="pill">Public-safe result</span>

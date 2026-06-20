@@ -21,13 +21,6 @@ export function getPlanLimits(plan: PlanTier): PlanLimits {
   return PLAN_LIMITS[plan];
 }
 
-export function assertResponseWithinLimit(plan: PlanTier, currentResponseCount: number): void {
-  const limit = getPlanLimits(plan).maxResponsesPerCheck;
-  if (currentResponseCount >= limit) {
-    throw new Error(`Response limit reached for ${plan} plan (${limit}).`);
-  }
-}
-
 export function clampCustomConstraints(plan: PlanTier, constraints: string[]): string[] {
   const max = getPlanLimits(plan).maxCustomConstraints;
   return constraints.slice(0, max);

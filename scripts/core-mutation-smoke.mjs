@@ -29,8 +29,8 @@ const coreMutations = [
   {
     name: "deleted responses included in result summaries",
     file: "src/results.ts",
-    from: "return responses.filter((response) => !response.deletedAt && response.status in STATUS_SCORE);",
-    to: "return responses.filter((response) => response.status in STATUS_SCORE);"
+    from: "return responses.filter((response) => response && !response.deletedAt && response.status in STATUS_SCORE);",
+    to: "return responses.filter((response) => response && response.status in STATUS_SCORE);"
   },
   {
     name: "free response cap raised",
@@ -59,14 +59,48 @@ const coreMutations = [
   {
     name: "k price multiplier ignored",
     file: "src/draft.ts",
-    from: 'const multiplier = matches[0]?.[2] === "k" ? 1000 : 1;',
-    to: 'const multiplier = matches[0]?.[2] === "k" ? 1 : 1;'
+    from: 'const multiplier = match[2] === "k" ? 1000 : 1;',
+    to: 'const multiplier = match[2] === "k" ? 1 : 1;'
   },
   {
     name: "title angle bracket sanitization weakened",
     file: "src/draft.ts",
     from: ".replace(/[<>]/g, \"\")",
     to: ".replace(/[<>]/, \"\")"
+  },
+  {
+    name: "tier score falls back to a neutral constant instead of status",
+    file: "src/results.ts",
+    from: "const tierScore = tier && Number.isFinite(tier.score) ? tier.score : STATUS_SCORE[response.status];",
+    to: "const tierScore = tier && Number.isFinite(tier.score) ? tier.score : 1.5;"
+  },
+  {
+    name: "title truncation cuts mid surrogate pair",
+    file: "src/draft.ts",
+    from: "  return trimDanglingSurrogate([...normalized].slice(0, 90).join(\"\")).trim();",
+    to: "  return normalized.slice(0, 90);"
+  },
+  {
+    name: "negative price guard removed",
+    file: "src/draft.ts",
+    from:
+      "  // A signed-negative number is never a valid price.\n" +
+      "  if (/-\\s*\\$?\\s*\\.?\\d/.test(lowered)) {\n" +
+      "    return { state: \"malformed\", raw: value };\n" +
+      "  }\n",
+    to: ""
+  },
+  {
+    name: "preference constraints surfaced as flagged concerns",
+    file: "src/results.ts",
+    from: 'return id === "price-flexible" || id === "free-still-comfortable" || id.startsWith("vibe-");',
+    to: "return false;"
+  },
+  {
+    name: "high-price warning contradicts a unanimous yes",
+    file: "src/results.ts",
+    from: "    if (maybeOrOut === 0) {\n      return undefined;\n    }",
+    to: "    if (false) {\n      return undefined;\n    }"
   }
 ];
 

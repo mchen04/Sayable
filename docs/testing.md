@@ -51,6 +51,9 @@ Additional deterministic stress coverage lives in `packages/core/test/stress.tes
 - raising/lowering custom constraint caps
 - ignoring `k` price notation
 - weakening title angle-bracket sanitization
+- falling back to a neutral constant tier score instead of the response status (verdict integrity)
+- truncating a title mid-surrogate-pair instead of code-point-safe slicing
+- removing the negative-price guard
 - failing to mark response deletion
 - failing to revoke old public snapshots after response deletion
 - leaking private notes into public snapshots
@@ -58,6 +61,8 @@ Additional deterministic stress coverage lives in `packages/core/test/stress.tes
 - removing deleted-check terminal-state protection
 
 Web/API mutations run from an isolated temporary repo copy with `node_modules` symlinked back to the local install. The mutation runner does not patch the live working tree.
+
+Additional adversarial-hardening coverage lives in `packages/core/test/hardening.test.ts`: invalid-activity-type fallback, nullish response entries, NaN/Infinity/string tier scores, tier-removed-after-response verdict integrity, negative/exponent/leading-dot/percent/malformed-comma price parsing, price-state boundary table, surrogate-safe title truncation, current-idea sanitization, verdict-aware final-message closers, and the constraint privacy boundary.
 
 ## Browser smoke checklist
 
@@ -78,9 +83,34 @@ Run with the web server at `http://localhost:3000`.
 13. Privacy, terms, support, deletion, admin pages are reachable.
 14. Required viewports: 360x740, 390x844, 844x390, 768x1024, 1024x768, 1024x700, 1440x900.
 
+## Supabase CLI verification
+
+With Docker running, verify the schema, RLS, advisors, and runtime against local Postgres:
+
+```bash
+supabase start
+supabase db reset            # applies migrations 0001-0005
+supabase migration list      # 0001-0005 applied
+supabase db lint             # No schema errors found
+supabase db advisors --type security      # 0 findings
+supabase db advisors --type performance   # 0 findings
+SAYABLE_STORE_BACKEND=supabase NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321 \
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<local> SAYABLE_SUPABASE_SERVICE_ROLE_KEY=<local> \
+  SAYABLE_TOKEN_ENCRYPTION_KEY=local-dev-secret npm run check:supabase   # { ok: true }
+```
+
+RLS is verified by inserting a private row with the service-role key and confirming an anonymous
+publishable-key client reads `[]` from every private table (and is rejected 401 on inserts/RPCs),
+while two distinct authenticated users cannot read or update each other's `comfort_checks` rows.
+
+Hosted-project verification follows the same `check:supabase` / Supabase-mode smoke steps against the
+deployed project once production database access is authorized.
+
 ## Automated web smoke
 
-`npm run smoke:web` starts the Next.js app on an isolated local port with a temporary store file, then checks:
+`npm run smoke:web` defaults to the isolated file backend (no secrets needed). Set
+`SAYABLE_STORE_BACKEND=supabase` (plus the Supabase URL/keys) to run the identical flow against a
+Supabase project. The script starts the Next.js app on an isolated local port with a temporary store, then checks:
 
 - all seven day-one activity types can create checks
 - guest link opens with privacy copy
@@ -114,8 +144,8 @@ Run with the web server at `http://localhost:3000`.
 
 `npm run verify` includes the no-LLM guard, core mutation smoke, and this web smoke script before the production build.
 
-`npm audit --audit-level=high` passes on the current Next 16 / Expo 56 / React 19 stack. `npm audit` still reports moderate/low transitive advisories in current framework chains, tracked in `validation/adversarial-loops.md`.
+`npm audit --audit-level=high` should pass on the current Next / Expo / React stack. Record fresh dependency-audit evidence in the active validation report for each hardening run.
 
 ## Final validation gates
 
-The implementation contract requires independent-context adversarial convergence loops and `/criticality-loop` convergence 2 before the goal can be marked complete. Those gates are recorded as converged in `validation/adversarial-loops.md`; `/criticality-loop` convergence is recorded in `criticality-loop.log.md`.
+The implementation contract requires independent-context adversarial convergence loops and `/criticality-loop` convergence 2 before the goal can be marked complete. Do not reuse stale loop reports; create fresh validation evidence for the current code, current database state, and current browser screenshots.

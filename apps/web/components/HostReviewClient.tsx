@@ -9,8 +9,10 @@ import {
   type ComfortTier,
   type PlanTier,
   THEMES,
+  THEME_ICON_NAMES,
   getPlanLimits,
-  getTheme
+  getTheme,
+  themeIconGlyph
 } from "@sayable/core";
 import {
   ArrowRight,
@@ -382,7 +384,7 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
   }
 
   const accent = data.check.customTheme?.accent || theme.accent;
-  const themeIcon = data.check.customTheme?.icon || theme.icon;
+  const themeIcon = themeIconGlyph(data.check.customTheme?.icon || theme.icon);
   const hostErrorId = error ? "host-review-error" : undefined;
   const fieldErrorProps = (id: string) => ({
     "aria-invalid": invalidFieldId === id,
@@ -556,8 +558,10 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
                 Results
                 <ArrowRight size={18} aria-hidden />
               </Link>
-              <button className="btn btn-danger" type="button" onClick={deleteCheck} disabled={isSaving}>
-                <Trash2 size={18} aria-hidden />
+            </div>
+            <div className="danger-zone">
+              <button className="btn btn-ghost-danger" type="button" onClick={deleteCheck} disabled={isSaving}>
+                <Trash2 size={16} aria-hidden />
                 {confirmDelete ? "Confirm delete" : "Delete check"}
               </button>
             </div>
@@ -700,13 +704,18 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
             </div>
             <div className="field">
               <label htmlFor="custom-icon">Custom icon</label>
-              <input
+              <select
                 id="custom-icon"
                 value={customIcon}
-                maxLength={16}
                 {...fieldErrorProps("custom-icon")}
                 onChange={(event) => setCustomIcon(event.target.value)}
-              />
+              >
+                {THEME_ICON_NAMES.map((name) => (
+                  <option key={name} value={name}>
+                    {`${themeIconGlyph(name)}  ${name}`}
+                  </option>
+                ))}
+              </select>
             </div>
             <button className="btn btn-primary" type="button" onClick={saveCustomTheme}>
               Save custom theme

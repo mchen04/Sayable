@@ -56,8 +56,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Link href="/terms">Terms</Link>
           <Link href="/privacy">Privacy</Link>
           <Link href="/support">Support</Link>
-          <Link href="/delete">Deletion</Link>
-          <Link href="/admin">Operator</Link>
+          <Link href="/delete">Delete my data</Link>
         </footer>
       </body>
     </html>

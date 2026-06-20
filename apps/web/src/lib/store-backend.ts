@@ -499,9 +499,11 @@ function toSupabasePayload(store: StoreFile) {
   };
 }
 
-async function writeSupabaseStore(store: StoreFile): Promise<void> {
+async function writeSupabaseStore(store: StoreFile, lockOwner: string): Promise<void> {
   const payload = toSupabasePayload(store);
   const { error } = await getSupabaseStoreClient().rpc("replace_sayable_runtime_store", {
+    p_lock_key: SUPABASE_STORE_LOCK_KEY,
+    p_owner_id: lockOwner,
     p_checks: payload.checks,
     p_responses: payload.responses,
     p_purchases: payload.purchases,
@@ -522,12 +524,15 @@ export async function readStore(): Promise<StoreFile> {
   return readSupabaseStore();
 }
 
-async function writeStore(store: StoreFile): Promise<void> {
+async function writeStore(store: StoreFile, lockOwner: string | undefined): Promise<void> {
   if (!isSupabaseStoreEnabled()) {
     writeFileStore(store);
     return;
   }
-  await writeSupabaseStore(store);
+  if (!lockOwner) {
+    throw new StoreError(500, "Refusing to write the Supabase runtime store without holding the runtime lock.");
+  }
+  await writeSupabaseStore(store, lockOwner);
 }
 
 function checkChangeSignatures(store: StoreFile): Map<string, string> {
@@ -624,11 +629,37 @@ async function emitCheckChange(checkId: string): Promise<void> {
 }
 
 function notifyChangedChecks(before: Map<string, string>, store: StoreFile): void {
+  // Realtime broadcast is only meaningful for the Supabase backend (multi-client
+  // live updates). The file backend is a single-instance local-only path, so skip
+  // it to avoid pointless broadcast attempts and latency.
+  if (!isSupabaseStoreEnabled()) {
+    return;
+  }
   const after = checkChangeSignatures(store);
   for (const [checkId, signature] of after) {
     if (before.get(checkId) !== signature) {
       void emitCheckChange(checkId).catch((error) => console.error("Sayable realtime broadcast failed", error));
     }
+  }
+}
+
+// Append-only observability tables (analytics/audit/abuse) would otherwise grow
+// without bound. Because every mutation rewrites the whole store, unbounded
+// growth makes each write progressively more expensive and is an amplification
+// vector. Cap each to its most recent entries so the store stays bounded.
+const ANALYTICS_EVENT_CAP = 5000;
+const AUDIT_LOG_CAP = 5000;
+const ABUSE_EVENT_CAP = 2000;
+
+function pruneAppendOnlyTables(store: StoreFile): void {
+  if (store.analyticsEvents.length > ANALYTICS_EVENT_CAP) {
+    store.analyticsEvents = store.analyticsEvents.slice(-ANALYTICS_EVENT_CAP);
+  }
+  if (store.auditLogs.length > AUDIT_LOG_CAP) {
+    store.auditLogs = store.auditLogs.slice(-AUDIT_LOG_CAP);
+  }
+  if (store.abuseEvents.length > ABUSE_EVENT_CAP) {
+    store.abuseEvents = store.abuseEvents.slice(-ABUSE_EVENT_CAP);
   }
 }
 
@@ -639,7 +670,8 @@ export async function mutateStore<T>(mutator: (store: StoreFile) => T): Promise<
       const store = await readStore();
       const before = checkChangeSignatures(store);
       const result = mutator(store);
-      await writeStore(store);
+      pruneAppendOnlyTables(store);
+      await writeStore(store, lockOwner);
       notifyChangedChecks(before, store);
       return result;
     } finally {
@@ -666,5 +698,14 @@ export function hashToken(token: string): string {
 }
 
 export async function resetStoreForTests(): Promise<void> {
-  await writeStore(blankStore());
+  if (!isSupabaseStoreEnabled()) {
+    writeFileStore(blankStore());
+    return;
+  }
+  const lockOwner = await acquireSupabaseStoreLock();
+  try {
+    await writeStore(blankStore(), lockOwner);
+  } finally {
+    await releaseSupabaseStoreLock(lockOwner);
+  }
 }

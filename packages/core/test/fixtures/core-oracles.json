@@ -10,7 +10,7 @@
     "expected": {
       "title": "Rooftop drinks",
       "priceState": "normal",
-      "constraintLabels": ["Keep it low-key", "Keep the bill comfortable"],
+      "constraintLabels": ["A low-key vibe", "A comfortable bill"],
       "bestFit": "Easy yes for the group"
     },
     "responses": [
@@ -31,7 +31,7 @@
     "expected": {
       "title": "Birthday dinner downtown",
       "priceState": "high",
-      "constraintLabels": ["Price around $120/person needs a real yes", "Keep it celebratory"],
+      "constraintLabels": ["The $120/person price", "A celebratory vibe"],
       "bestFit": "Works with a few tweaks",
       "warningIncludes": "cheaper"
     },
@@ -53,7 +53,7 @@
     "expected": {
       "title": "Park hang",
       "priceState": "ambiguous",
-      "constraintLabels": ["Need clearer price details", "Easy to opt in without pressure"],
+      "constraintLabels": ["Clearer price details", "An easy opt-in"],
       "bestFit": "Rethink the plan"
     },
     "responses": [
@@ -74,7 +74,7 @@
     "expected": {
       "title": "Concert night",
       "priceState": "high",
-      "constraintLabels": ["Price around $88/person needs a real yes", "Ticket price feels okay"],
+      "constraintLabels": ["The $88/person price", "A fair ticket price"],
       "bestFit": "Works with a few tweaks",
       "warningIncludes": "cheaper"
     },
@@ -96,8 +96,8 @@
     "expected": {
       "title": "Cabin weekend",
       "priceState": "extreme",
-      "constraintLabels": ["Price around $1200 needs a real yes", "Keep it adventurous"],
-      "bestFit": "Gathering comfort signal",
+      "constraintLabels": ["The $1,200 price", "An adventurous vibe"],
+      "bestFit": "Waiting on a few more responses",
       "suppressed": true
     },
     "responses": [
@@ -117,7 +117,7 @@
     "expected": {
       "title": "Mystery plan",
       "priceState": "malformed",
-      "constraintLabels": ["Need clearer price details", "Budget feels comfortable"],
+      "constraintLabels": ["Clearer price details", "A comfortable budget"],
       "bestFit": "Split comfort"
     },
     "responses": [
@@ -138,7 +138,7 @@
     "expected": {
       "title": "Movie night",
       "priceState": "free",
-      "constraintLabels": ["Free plan still feels worth the time", "Keep it cozy"],
+      "constraintLabels": ["Worth the time, even if it's free", "A cozy vibe"],
       "bestFit": "Easy yes for the group"
     },
     "responses": [

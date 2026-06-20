@@ -10,7 +10,7 @@ import type {
   PlanTier,
   Vibe
 } from "./types";
-import { VIBES } from "./types";
+import { ACTIVITY_TYPES, VIBES } from "./types";
 
 const ACTIVITY_LABELS: Record<ActivityType, string> = {
   dinner_drinks: "Dinner/drinks",
@@ -31,48 +31,51 @@ const VIBE_LABELS: Record<Vibe, string> = {
   spontaneous: "spontaneous"
 };
 
+// Constraint labels are written as short, neutral topic phrases so they read
+// naturally both as "what would make this easier?" options AND when the result
+// engine references them ("A comfortable bill mattered to most people.").
 const ACTIVITY_CONSTRAINTS: Record<ActivityType, ComfortConstraint[]> = {
   dinner_drinks: [
-    { id: "budget-friendly", label: "Keep the bill comfortable", group: "budget" },
-    { id: "food-options", label: "Has food options for everyone", group: "food" },
-    { id: "easy-transit", label: "Easy to get to or park near", group: "access" },
-    { id: "talk-volume", label: "Quiet enough to actually talk", group: "vibe" }
+    { id: "budget-friendly", label: "A comfortable bill", group: "budget" },
+    { id: "food-options", label: "Food options for everyone", group: "food" },
+    { id: "easy-transit", label: "An easy place to get to", group: "access" },
+    { id: "talk-volume", label: "A spot quiet enough to talk", group: "vibe" }
   ],
   birthday: [
-    { id: "guest-budget", label: "Does not pressure anyone's budget", group: "budget" },
-    { id: "group-size", label: "Works for the whole group size", group: "logistics" },
-    { id: "timing", label: "Timing works without rushing", group: "timing" },
-    { id: "celebration-level", label: "Feels festive but not too much", group: "vibe" }
+    { id: "guest-budget", label: "A budget that works for everyone", group: "budget" },
+    { id: "group-size", label: "Room for the whole group", group: "logistics" },
+    { id: "timing", label: "Timing that isn't rushed", group: "timing" },
+    { id: "celebration-level", label: "The right amount of festive", group: "vibe" }
   ],
   casual_hangout: [
-    { id: "low-pressure", label: "Easy to opt in without pressure", group: "vibe" },
-    { id: "short-notice", label: "Works on short notice", group: "timing" },
-    { id: "close-by", label: "Close enough for most people", group: "access" },
-    { id: "cheap-or-free", label: "Cheap or free is preferred", group: "budget" }
+    { id: "low-pressure", label: "An easy opt-in", group: "vibe" },
+    { id: "short-notice", label: "Short-notice flexibility", group: "timing" },
+    { id: "close-by", label: "Close by for most people", group: "access" },
+    { id: "cheap-or-free", label: "Cheap or free", group: "budget" }
   ],
   tickets_event: [
-    { id: "ticket-price", label: "Ticket price feels okay", group: "budget" },
-    { id: "commitment", label: "Commitment level feels okay", group: "timing" },
-    { id: "seat-location", label: "Seats/location are worth it", group: "logistics" },
-    { id: "backup-plan", label: "Need a backup if people are unsure", group: "logistics" }
+    { id: "ticket-price", label: "A fair ticket price", group: "budget" },
+    { id: "commitment", label: "A comfortable commitment", group: "timing" },
+    { id: "seat-location", label: "Seats worth the price", group: "logistics" },
+    { id: "backup-plan", label: "A backup if people are unsure", group: "logistics" }
   ],
   group_trip: [
-    { id: "total-cost", label: "Total cost is realistic", group: "budget" },
-    { id: "dates", label: "Dates work before booking", group: "timing" },
-    { id: "travel-load", label: "Travel time and effort feel okay", group: "access" },
-    { id: "planning-detail", label: "Need clearer plan details first", group: "logistics" }
+    { id: "total-cost", label: "A realistic total cost", group: "budget" },
+    { id: "dates", label: "Dates that work for everyone", group: "timing" },
+    { id: "travel-load", label: "Manageable travel time", group: "access" },
+    { id: "planning-detail", label: "Clearer plan details", group: "logistics" }
   ],
   home_chill: [
-    { id: "host-effort", label: "Host effort stays reasonable", group: "logistics" },
-    { id: "food-drink", label: "Food/drinks are clear", group: "food" },
-    { id: "quiet-night", label: "Keeps the night relaxed", group: "vibe" },
-    { id: "arrival-window", label: "Arrival time is flexible", group: "timing" }
+    { id: "host-effort", label: "Reasonable effort for the host", group: "logistics" },
+    { id: "food-drink", label: "Clear food and drinks", group: "food" },
+    { id: "quiet-night", label: "A relaxed night", group: "vibe" },
+    { id: "arrival-window", label: "A flexible arrival time", group: "timing" }
   ],
   custom: [
-    { id: "budget-check", label: "Budget feels comfortable", group: "budget" },
-    { id: "timing-check", label: "Timing works for most people", group: "timing" },
-    { id: "location-check", label: "Location is manageable", group: "access" },
-    { id: "vibe-check", label: "Vibe feels right", group: "vibe" }
+    { id: "budget-check", label: "A comfortable budget", group: "budget" },
+    { id: "timing-check", label: "Timing that works", group: "timing" },
+    { id: "location-check", label: "A manageable location", group: "access" },
+    { id: "vibe-check", label: "The right vibe", group: "vibe" }
   ]
 };
 
@@ -115,20 +118,51 @@ const DEFAULT_QUESTIONS: ComfortQuestion[] = [
   }
 ];
 
+function safeActivityType(activityType: ActivityType): ActivityType {
+  return ACTIVITY_TYPES.includes(activityType) ? activityType : "custom";
+}
+
+// Deterministic thousands separators (locale-independent) so "$2k" reads as "$2,000".
+function formatAmount(amount: number): string {
+  return String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
 export function activityLabel(activityType: ActivityType): string {
-  return ACTIVITY_LABELS[activityType];
+  return ACTIVITY_LABELS[safeActivityType(activityType)];
+}
+
+// Strip a dangling unpaired UTF-16 surrogate left behind by a code-unit slice,
+// so a truncated title never ends in a broken glyph.
+function trimDanglingSurrogate(value: string): string {
+  const lastCode = value.charCodeAt(value.length - 1);
+  if (lastCode >= 0xd800 && lastCode <= 0xdbff) {
+    return value.slice(0, -1);
+  }
+  return value;
 }
 
 export function normalizeTitle(title: string): string {
   const normalized = title
     .replace(/https?:\/\/\S+/gi, "")
     .replace(/[<>]/g, "")
+    .replace(/[\u0000-\u001f\u007f]/g, "")
     .replace(/\s+/g, " ")
     .trim();
   if (!normalized || /^[\p{P}\p{S}\s]+$/u.test(normalized)) {
     return "Untitled Comfort Check";
   }
-  return normalized.slice(0, 90);
+  return trimDanglingSurrogate([...normalized].slice(0, 90).join("")).trim();
+}
+
+// Idea text is shown to the host and embedded in share copy; strip the same
+// HTML-ish characters and links we strip from titles for defense-in-depth.
+function sanitizeIdea(idea: string): string {
+  return idea
+    .replace(/https?:\/\/\S+/gi, "")
+    .replace(/[<>]/g, "")
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function parsePrice(raw?: string): ParsedPrice {
@@ -142,19 +176,48 @@ export function parsePrice(raw?: string): ParsedPrice {
     return { state: "free", amount: 0, raw: value };
   }
 
-  const matches = Array.from(lowered.matchAll(/\$?\s*(\d+(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)\s*(k)?/g));
-  if (matches.length === 0) {
+  // A percentage ("50%", "20% off") is not a price.
+  if (/\d\s*%/.test(lowered)) {
+    return { state: "ambiguous", raw: value };
+  }
+  // Scientific notation ("1e9") is too ambiguous to price confidently.
+  if (/\d\s*e\s*\d/i.test(lowered)) {
+    return { state: "ambiguous", raw: value };
+  }
+  // A signed-negative number is never a valid price.
+  if (/-\s*\$?\s*\.?\d/.test(lowered)) {
+    return { state: "malformed", raw: value };
+  }
+  // A range or multi-number string ("$10 and $300", "between $20 and $40") is not a
+  // single price; classifying it by the first number would skew the comfort signal.
+  if ((lowered.match(/\d[\d.,]*/g) || []).length > 1) {
+    return { state: "ambiguous", raw: value };
+  }
+
+  const match = lowered.match(/\$?\s*([\d.,]+)\s*(k)?/);
+  if (!match || !/\d/.test(match[1] ?? "")) {
     return /[a-z]/i.test(value) ? { state: "ambiguous", raw: value } : { state: "malformed", raw: value };
   }
 
-  const numeric = (matches[0]?.[1] ?? "0").replace(/,/g, "");
-  const multiplier = matches[0]?.[2] === "k" ? 1000 : 1;
+  const numStr = match[1] ?? "";
+  // Reject mistyped numbers: multiple decimal points, or commas that do not form
+  // clean thousands groups (e.g. "$1,00", "$1,0000").
+  const hasComma = numStr.includes(",");
+  if (numStr.split(".").length > 2) {
+    return { state: "malformed", raw: value };
+  }
+  if (hasComma && !/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(numStr)) {
+    return { state: "ambiguous", raw: value };
+  }
+
+  const numeric = numStr.replace(/,/g, "");
+  const multiplier = match[2] === "k" ? 1000 : 1;
   const amount = Number(numeric) * multiplier;
-  if (!Number.isFinite(amount)) {
+  if (!Number.isFinite(amount) || amount < 0) {
     return { state: "malformed", raw: value };
   }
 
-  const perPerson = /\b(pp|per person|each|split)\b/.test(lowered);
+  const perPerson = /(per ?person|\/ ?person|pp\b|\beach\b|\bsplit\b)/.test(lowered);
   if (amount === 0) {
     return { state: "free", amount, raw: value, perPerson };
   }
@@ -172,17 +235,20 @@ export function parsePrice(raw?: string): ParsedPrice {
 
 function priceConstraint(price: ParsedPrice): ComfortConstraint | undefined {
   if (price.state === "none") {
-    return { id: "price-flexible", label: "Keep cost flexible", group: "budget" };
+    return { id: "price-flexible", label: "Flexible on cost", group: "budget" };
   }
   if (price.state === "free") {
-    return { id: "free-still-comfortable", label: "Free plan still feels worth the time", group: "timing" };
+    return { id: "free-still-comfortable", label: "Worth the time, even if it's free", group: "timing" };
   }
   if (price.state === "high" || price.state === "extreme") {
-    const suffix = price.amount ? ` around $${price.amount}${price.perPerson ? "/person" : ""}` : "";
-    return { id: "price-high", label: `Price${suffix} needs a real yes`, group: "budget" };
+    // Neutral topic phrase (not an affirmation) so it reads correctly both as a
+    // "what would make this easier?" option and when surfaced as a flagged concern.
+    const amount = price.amount ? formatAmount(price.amount) : undefined;
+    const label = amount ? `The $${amount}${price.perPerson ? "/person" : ""} price` : "The price";
+    return { id: "price-high", label, group: "budget" };
   }
   if (price.state === "ambiguous" || price.state === "malformed") {
-    return { id: "price-clarity", label: "Need clearer price details", group: "budget" };
+    return { id: "price-clarity", label: "Clearer price details", group: "budget" };
   }
   return undefined;
 }
@@ -191,9 +257,11 @@ function vibeConstraint(vibe?: Vibe): ComfortConstraint | undefined {
   if (!vibe || !VIBES.includes(vibe)) {
     return undefined;
   }
+  const label = VIBE_LABELS[vibe];
+  const article = /^[aeiou]/i.test(label) ? "An" : "A";
   return {
     id: `vibe-${vibe}`,
-    label: `Keep it ${VIBE_LABELS[vibe]}`,
+    label: `${article} ${label} vibe`,
     group: "vibe"
   };
 }
@@ -223,28 +291,30 @@ function customConstraintRows(plan: PlanTier, customConstraints: string[] = []):
 }
 
 export function createComfortDraft(input: DraftInput, plan: PlanTier = "free"): ComfortDraft {
+  const activityType = safeActivityType(input.activityType);
   const title = normalizeTitle(input.title);
   const price = parsePrice(input.currentIdea);
-  const activity = activityLabel(input.activityType);
-  const idea = input.currentIdea?.trim();
+  const activity = activityLabel(activityType);
+  const idea = input.currentIdea ? sanitizeIdea(input.currentIdea) || undefined : undefined;
   const safeVibe = input.vibe && VIBES.includes(input.vibe) ? input.vibe : undefined;
-  const vibeText = safeVibe ? ` with a ${VIBE_LABELS[safeVibe]} vibe` : "";
+  const vibeArticle = safeVibe && /^[aeiou]/i.test(VIBE_LABELS[safeVibe]) ? "an" : "a";
+  const vibeText = safeVibe ? ` Going for ${vibeArticle} ${VIBE_LABELS[safeVibe]} vibe.` : "";
   const extraConstraints = [priceConstraint(price), vibeConstraint(input.vibe)].filter(
     (constraint): constraint is ComfortConstraint => Boolean(constraint)
   );
   const constraints = uniqueConstraints([
     ...extraConstraints,
-    ...ACTIVITY_CONSTRAINTS[input.activityType],
+    ...ACTIVITY_CONSTRAINTS[activityType],
     ...customConstraintRows(plan, input.customConstraints)
   ]).slice(0, plan === "premium" ? 16 : 8);
 
-  const shareText = `Comfort Check for ${title}: quick private vibe check before we lock it in. ${activity}${vibeText}${
-    idea ? `, current idea: ${idea}` : ""
-  }.`;
+  const shareText = `${title}: a quick, private Comfort Check before we lock it in.${vibeText}${
+    idea ? ` Current idea: ${idea}.` : ""
+  } Your answer stays private.`;
 
   return {
     title,
-    activityType: input.activityType,
+    activityType,
     activityLabel: activity,
     ...(safeVibe ? { vibe: safeVibe } : {}),
     currentIdea: idea,

@@ -231,10 +231,7 @@ export default function GuestCheckClient({ guestToken }: { guestToken: string })
           </span>
           <h1 className="compact-title">{data.check.title}</h1>
           <p className="muted">{data.check.draft.privacyCopy}</p>
-          <div className="status-note">
-            Guests do not need accounts. The host gets grouped patterns after enough responses, not named budget answers
-            or private notes.
-          </div>
+          <div className="status-note">No account needed. Answer in under a minute — you can edit or delete it later.</div>
           {unavailable ? (
             <div className="error-note">
               This Comfort Check is {data.check.status}. Your answers cannot be changed from this link.
@@ -303,14 +300,14 @@ export default function GuestCheckClient({ guestToken }: { guestToken: string })
           </fieldset>
 
           <div className="field">
-            <label htmlFor="private-note">Private note</label>
+            <label htmlFor="private-note">Private note (only you)</label>
             <textarea
               id="private-note"
               disabled={unavailable}
               value={form.privateNote}
               maxLength={500}
               onChange={(event) => setForm((current) => ({ ...current, privateNote: event.target.value }))}
-              placeholder="Optional. Only used as private context for the host, never in public snapshots."
+              placeholder="Optional, just for you. Saved with your response so you can recall it when you edit. The host never sees notes and they never appear in shared results."
             />
           </div>
 

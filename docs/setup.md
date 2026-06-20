@@ -29,15 +29,36 @@ Expo config is generated from `apps/mobile/app.config.js`; set `EXPO_PUBLIC_WEB_
 
 ## Supabase
 
-Apply `supabase/migrations/0001_sayable_mvp.sql` in the owned Supabase project. RLS is enabled on all MVP tables. Anonymous direct table access is intentionally not granted; public token flows must go through server routes or Edge Functions that hash and validate tokens.
+Apply all migrations in `supabase/migrations/` (`0001`–`0005`) in the owned Supabase project. RLS is enabled on all MVP tables. Anonymous direct table access is intentionally not granted; public token flows must go through server routes or Edge Functions that hash and validate tokens.
 
-To apply the migration from this repo, use a Supabase Postgres connection string or a linked Supabase CLI project with database admin access. In the Supabase dashboard, open the project, go to **Project Settings > Database > Connection string**, copy the URI connection string, replace `[YOUR-PASSWORD]` with the database password, then run:
+### Local Supabase (CLI) verification
+
+With Docker running, the local stack is the fastest way to verify the schema, RLS, advisors, and runtime end to end:
 
 ```bash
-supabase db query --db-url "$SUPABASE_DB_URL" --file supabase/migrations/0001_sayable_mvp.sql
+supabase init                 # one-time; creates supabase/config.toml
+supabase start                # boots local Postgres/Auth/REST/Realtime
+supabase db reset             # applies 0001-0005 from supabase/migrations
+supabase migration list       # confirm 0001-0005 applied
+supabase db lint              # expect: No schema errors found
+supabase db advisors --type security
+supabase db advisors --type performance   # both expect: 0 findings
+
+# Point the app/checks at the local stack (values from `supabase status`):
+export NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+export NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<local publishable key>
+export SAYABLE_SUPABASE_SERVICE_ROLE_KEY=<local secret key>
+export SAYABLE_STORE_BACKEND=supabase
+export SAYABLE_TOKEN_ENCRYPTION_KEY=local-dev-32-byte-secret
+npm run check:supabase        # expect: { ok: true, ... }
+npm run smoke:web             # runs the full flow against local Supabase
 ```
 
-The publishable key and server API key are runtime credentials; they do not create missing tables or functions.
+Local CLI keys are well-known dev values printed by `supabase status` — never commit them.
+
+### Hosted Supabase
+
+To apply migrations to the hosted project, link the CLI (`supabase link --project-ref <ref>`) then run `supabase db push`, or use a Supabase Postgres connection string with database admin access (**Project Settings > Database > Connection string**). The publishable key and server API key are runtime credentials; they do not create missing tables or functions.
 
 Local no-secret smoke uses the file backend:
 

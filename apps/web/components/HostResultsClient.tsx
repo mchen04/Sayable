@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { createClient, type RealtimeChannel, type SupabaseClient } from "@supabase/supabase-js";
-import { getTheme, type ComfortDraft, type PlanTier } from "@sayable/core";
+import { getTheme, themeIconGlyph, type ComfortDraft, type PlanTier } from "@sayable/core";
 import { Clipboard, MessageCircle, RefreshCw, Share2, ShieldCheck } from "lucide-react";
 import { authHeaders, copyText } from "./client-utils";
 import type { HostResultsEndpoints } from "./host-endpoints";
@@ -211,7 +211,7 @@ export default function HostResultsClient({ endpoints }: HostResultsClientProps)
   }
 
   const accent = data.check.customTheme?.accent || theme.accent;
-  const themeIcon = data.check.customTheme?.icon || theme.icon;
+  const themeIcon = themeIconGlyph(data.check.customTheme?.icon || theme.icon);
 
   return (
     <main
@@ -253,7 +253,7 @@ export default function HostResultsClient({ endpoints }: HostResultsClientProps)
             </div>
             <div className="result-panel">
               <span className="pill">{data.check.plan}</span>
-              <h2>{data.result.bestFit.label}</h2>
+              <h2 className={`verdict-chip tone-${data.result.bestFit.tone}`}>{data.result.bestFit.label}</h2>
               <p className="muted">{data.result.bestFit.detail}</p>
             </div>
           </div>

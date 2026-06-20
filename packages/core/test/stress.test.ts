@@ -439,9 +439,9 @@ describe("metamorphic and deterministic snapshot checks", () => {
     );
 
     expect(hash(drafts.map((draft) => ({ ...draft, resultIntro: draft.resultIntro.replace(draft.title, "TITLE") })))).toBe(
-      "6bba431ee1f3626d647f5a983d6fd92fca44f9421f2af0b53943ab91ca3c93e8"
+      "c59fa6d7d7c7eb8327d01506e055b3ff9f594a5e3ec18bdfbd5d0b1de65bc353"
     );
-    expect(hash(summaries)).toBe("c1042ce6d72c41f2cd431fc0345687aa222547901e39230d2c5b1fee82216ea8");
+    expect(hash(summaries)).toBe("97933d8c39508d8e5777dba5c57ac0acdd0b2f01f49b106ac34c7b30249b7f9f");
   });
 });
 

@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     enforceRateLimit(request, "premium_return", { limit: 20, windowMs: 60_000 });
     const sessionId = request.nextUrl.searchParams.get("session_id") || "";
     if (!sessionId) {
-      return json({ error: "Checkout session is missing." }, 400);
+      throw new StoreError(400, "Checkout session is missing.");
     }
     const session = await requireHostSession(request);
     const result = await resolvePremiumCheckoutReturn(

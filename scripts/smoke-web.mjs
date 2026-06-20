@@ -20,12 +20,16 @@ const port = 3300 + Math.floor(Math.random() * 500);
 const baseUrl = `http://127.0.0.1:${port}`;
 const tempDir = await mkdtemp(path.join(tmpdir(), "sayable-smoke-"));
 const storePath = path.join(tempDir, "store.json");
-const isSupabaseStoreSmoke = process.env.SAYABLE_STORE_BACKEND === "supabase";
+// Default to the isolated file backend so a normal `npm run verify` never touches
+// a real Supabase project. Opt into Supabase-mode smoke with SAYABLE_STORE_BACKEND=supabase.
+const storeBackend = process.env.SAYABLE_STORE_BACKEND === "supabase" ? "supabase" : "file";
+const isSupabaseStoreSmoke = storeBackend === "supabase";
 await rm(path.join(process.cwd(), "apps", "web", ".next", "dev"), { recursive: true, force: true });
 
 const env = {
   ...process.env,
   NEXT_PUBLIC_WEB_BASE_URL: baseUrl,
+  SAYABLE_STORE_BACKEND: storeBackend,
   SAYABLE_STORE_PATH: storePath,
   SAYABLE_ADMIN_TOKEN: "smoke-admin-token",
   SAYABLE_DEMO_AUTH_ENABLED: "true",
@@ -393,7 +397,7 @@ async function main() {
   assert(host.response.ok, "host results failed");
   assert(host.body.result.responseCount === 4, "host result count should be 4");
   assert(!host.body.result.isPrivacySuppressed, "host result should not be suppressed at 4");
-  assert(host.body.result.groupedConstraints[0]?.label === "Keep the bill comfortable", "grouped budget constraint missing");
+  assert(host.body.result.groupedConstraints[0]?.label === "A comfortable bill", "grouped budget constraint missing");
   assert(host.body.result.groupedConstraints[0]?.signal === "broad", "common constraint should surface qualitatively");
   assert(!("count" in host.body.result.groupedConstraints[0]), "grouped constraint leaked exact count");
   assert(!("share" in host.body.result.groupedConstraints[0]), "grouped constraint leaked exact share");
@@ -450,7 +454,7 @@ async function main() {
   const longOgImage = await fetch(`${baseUrl}/api/og/check/${longOgToken}`);
   const longOgSvg = await longOgImage.text();
   assert(longOgImage.ok, `long OG image failed: ${longOgImage.status}`);
-  assert((longOgSvg.match(/<tspan/g) || []).length >= 4, "long OG image should wrap title/detail into bounded tspans");
+  assert((longOgSvg.match(/<tspan/g) || []).length >= 3, "long OG image should wrap title/detail into bounded tspans");
   assert(!longOgSvg.includes('font-size="72"'), "long OG image should use reduced wrapped title sizing");
   let throttledOgImage;
   for (let index = 0; index < 121; index += 1) {

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 import { notFound } from "next/navigation";
-import { getTheme } from "@sayable/core";
+import { getTheme, themeIconGlyph } from "@sayable/core";
 import { getSnapshot, publicBaseUrl } from "@/src/lib/store";
 
 type PageProps = { params: Promise<{ resultToken: string }> };
@@ -78,7 +78,7 @@ export default async function ResultSnapshotPage({ params }: PageProps) {
 
   const { check, result } = snapshot;
   const theme = getTheme(check.themeId);
-  const themeIcon = check.customTheme?.icon || theme.icon;
+  const themeIcon = themeIconGlyph(check.customTheme?.icon || theme.icon);
   return (
     <main
       className="page-shell section-band"
@@ -97,7 +97,7 @@ export default async function ResultSnapshotPage({ params }: PageProps) {
         </div>
         <span className="pill">Sayable public-safe result</span>
         <h1 className="compact-title">{check.title}</h1>
-        <h2>{result.publicSnapshot.headline}</h2>
+        <h2 className={`verdict-chip tone-${result.publicSnapshot.tone ?? "neutral"}`}>{result.publicSnapshot.headline}</h2>
         <p className="muted">{result.publicSnapshot.detail}</p>
         <div className="grid-three">
           {result.publicSnapshot.safeStats.map((stat) => (

@@ -44,9 +44,26 @@ function stripeMode(): "mock" | "test" {
   return process.env.STRIPE_MODE === "test" ? "test" : "mock";
 }
 
+// Mock checkout grants Premium entitlements without taking payment. That is fine
+// for local/demo use, but it must never silently hand out paid features in a real
+// production deployment that simply forgot to set STRIPE_MODE=test. Allow it only
+// outside production, or when an operator explicitly opts in for a demo build.
+function mockBillingAllowed(): boolean {
+  return process.env.NODE_ENV !== "production" || process.env.SAYABLE_ALLOW_MOCK_BILLING === "true";
+}
+
+function assertMockBillingAllowed(): void {
+  if (!mockBillingAllowed()) {
+    throw new StoreError(
+      501,
+      "Premium Check is not available in this environment yet. Configure Stripe test mode (STRIPE_MODE=test) to enable upgrades."
+    );
+  }
+}
+
 export function checkoutCapabilities(): PremiumCheckoutCapabilities {
   return {
-    canSimulateOutcomes: stripeMode() === "mock"
+    canSimulateOutcomes: stripeMode() === "mock" && mockBillingAllowed()
   };
 }
 
@@ -130,6 +147,7 @@ async function createCheckoutForTarget(
   outcome: PremiumCheckoutOutcome = "success"
 ): Promise<PremiumCheckoutResult> {
   if (stripeMode() === "mock") {
+    assertMockBillingAllowed();
     return {
       purchase: await upgradeCheckForTarget(target, outcome, "mock", {}, actor)
     };

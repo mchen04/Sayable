@@ -20,7 +20,16 @@ function runtimeSecret(): string {
 }
 
 function secret(): string {
-  return process.env.SAYABLE_DEMO_AUTH_SECRET || runtimeSecret();
+  if (process.env.SAYABLE_DEMO_AUTH_SECRET) {
+    return process.env.SAYABLE_DEMO_AUTH_SECRET;
+  }
+  // A per-process random secret is fine for local dev, but in production it would
+  // invalidate sessions on restart and diverge across instances. Demo auth should
+  // be disabled in production; if it is somehow enabled, fail loudly instead.
+  if (process.env.NODE_ENV === "production") {
+    throw new StoreError(500, "Demo auth requires SAYABLE_DEMO_AUTH_SECRET when enabled.");
+  }
+  return runtimeSecret();
 }
 
 export function isDemoAuthEnabled(): boolean {

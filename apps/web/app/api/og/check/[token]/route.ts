@@ -99,11 +99,16 @@ function unavailablePayload(detail = "This link is expired, deleted, or no longe
 }
 
 function svgResponse(payload: Parameters<typeof svgTemplate>[0], status = 200): Response {
+  // OG preview images are public, non-sensitive, and hammered by link-unfurl
+  // crawlers. Let CDNs/crawlers cache successful images so each scrape does not
+  // trigger a full store read; keep error/throttle responses uncacheable.
+  const cacheControl =
+    status === 200 ? "public, max-age=300, s-maxage=600, stale-while-revalidate=86400" : "no-store";
   return new Response(svgTemplate(payload), {
     status,
     headers: {
       "Content-Type": "image/svg+xml; charset=utf-8",
-      "Cache-Control": "no-store"
+      "Cache-Control": cacheControl
     }
   });
 }

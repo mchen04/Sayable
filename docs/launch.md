@@ -31,14 +31,15 @@ Capture at `390x844`, `844x390`, `768x1024`, `1024x700`, and `1440x900`.
 - `SAYABLE_SUPABASE_SERVICE_ROLE_KEY` set only on the server
 - `SAYABLE_TOKEN_ENCRYPTION_KEY` set only on the server
 - `SAYABLE_ADMIN_TOKEN` set only on the server
-- `SAYABLE_DEMO_AUTH_ENABLED` unset or `false`
+- `SAYABLE_TRUST_PROXY_HEADERS=true` for any deploy behind a proxy/load balancer (required so rate limits and the anonymous create-cap key on the real client IP rather than collapsing to a single shared bucket)
+- `SAYABLE_DEMO_AUTH_ENABLED` unset or `false` (if enabled in production, `SAYABLE_DEMO_AUTH_SECRET` is required or the server refuses demo sessions)
 - Supabase Google OAuth configured before `NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED=true`
-- `STRIPE_MODE=mock` for MVP smoke, or `test` only after Stripe test keys/webhook secret are configured
+- `STRIPE_MODE=test` for real production billing (mock grants Premium without payment). In production, mock checkout is refused unless `SAYABLE_ALLOW_MOCK_BILLING=true` is explicitly set for a demo build.
 - `EXPO_PUBLIC_WEB_BASE_URL` set before building the native app so universal link hosts are generated from the real web origin
 
 ## Deployment Checklist
 
-1. Apply `supabase/migrations/0001_sayable_mvp.sql`.
+1. Apply all migrations in `supabase/migrations/` (`0001`–`0005`) via `supabase db push` (or `supabase migration up` against the linked project).
 2. Deploy the Next.js app with server-only secrets scoped to API/server runtime.
 3. Run `npm run verify` and `npm audit --audit-level=high`.
 4. Run `npm run smoke:web` against an isolated production-like store.

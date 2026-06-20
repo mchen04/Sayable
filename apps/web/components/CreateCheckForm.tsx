@@ -113,7 +113,7 @@ export default function CreateCheckForm({ compact = false }: { compact?: boolean
           <div className="field">
             <label htmlFor="vibe">Vibe</label>
             <select id="vibe" value={vibe} onChange={(event) => setVibe(event.target.value as Vibe | "")}>
-              <option value="">No vibe selected</option>
+              <option value="">Pick a vibe (optional)</option>
               {VIBES.map((item) => (
                 <option value={item} key={item}>
                   {vibeLabels[item]}

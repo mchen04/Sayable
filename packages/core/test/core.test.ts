@@ -106,7 +106,7 @@ describe("privacy-safe result engine", () => {
     expect(summary.groupedConstraints[0]).toMatchObject({
       id: budgetConstraint.id,
       signal: "broad",
-      detail: "Broad private pattern"
+      detail: "Most of the group"
     });
     expect(summary.finalMessage).not.toMatch(/Alice|Bob|private note/i);
   });

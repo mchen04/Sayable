@@ -757,6 +757,9 @@ function markFinalSharedForCheckRecord(store: StoreFile, check: StoredCheck): {
   if (result.isPrivacySuppressed) {
     throw new StoreError(409, `Final share is available after ${result.privacyThreshold} private responses.`);
   }
+  // Revoke any prior public snapshot so re-sharing always supersedes the old
+  // result-token URL with a fresh, current snapshot.
+  invalidateResultSnapshots(store, check.id, now());
   const resultToken = randomToken();
   check.resultTokenHash = hashToken(resultToken);
   check.finalSharedAt = now();

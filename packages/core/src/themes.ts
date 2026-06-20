@@ -74,6 +74,38 @@ export const THEMES: ThemeDefinition[] = [
   }
 ];
 
+// Theme/custom icons are stored as short names; map them to display glyphs so
+// badges render an emoji rather than the raw uppercased name (e.g. "SPARKLE").
+const THEME_ICON_GLYPHS: Record<string, string> = {
+  sparkle: "✨",
+  glass: "🍸",
+  cake: "🎂",
+  bolt: "⚡",
+  map: "🗺️",
+  home: "🏠",
+  party: "🎉",
+  star: "⭐",
+  heart: "❤️",
+  fire: "🔥",
+  coffee: "☕",
+  pizza: "🍕",
+  music: "🎵",
+  sun: "☀️",
+  moon: "🌙",
+  gift: "🎁",
+  camera: "📸",
+  beach: "🏖️"
+};
+
+export const THEME_ICON_NAMES = Object.keys(THEME_ICON_GLYPHS);
+
+export function themeIconGlyph(icon?: string): string {
+  if (!icon) {
+    return THEME_ICON_GLYPHS.sparkle!;
+  }
+  return THEME_ICON_GLYPHS[icon.toLowerCase()] ?? THEME_ICON_GLYPHS.sparkle!;
+}
+
 export function getTheme(themeId?: string): ThemeDefinition {
   return THEMES.find((theme) => theme.id === themeId) ?? THEMES[0]!;
 }

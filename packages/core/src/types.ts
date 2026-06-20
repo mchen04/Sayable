@@ -112,6 +112,7 @@ export interface ResultSummary {
     headline: string;
     detail: string;
     safeStats: string[];
+    tone: "green" | "yellow" | "red" | "neutral";
   };
 }
 

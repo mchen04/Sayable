@@ -25,19 +25,25 @@ function maskedOwnerId(ownerUserId: string): string {
 export default function DashboardClient() {
   const [checks, setChecks] = useState<DashboardCheck[]>([]);
   const [ownerUserId, setOwnerUserId] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     getHostSession()
       .then(async (session) => {
         setOwnerUserId(session.ownerUserId);
         const headers = await authHeaders();
-        return fetch("/api/dashboard", { headers });
-      })
-      .then((response) => response.json())
-      .then((payload: { checks?: DashboardCheck[] }) => {
+        const response = await fetch("/api/dashboard", { headers });
+        const payload = (await response.json().catch(() => ({}))) as {
+          checks?: DashboardCheck[];
+          error?: string;
+        };
+        if (!response.ok) {
+          setError(payload.error || "Could not load your saved checks. Sign in again from a check you created.");
+          return;
+        }
         setChecks(payload.checks || []);
       })
-      .catch(() => setChecks([]));
+      .catch(() => setError("Network error loading your dashboard. Check your connection and try again."));
   }, []);
 
   return (
@@ -50,6 +56,11 @@ export default function DashboardClient() {
           plan needs more room. Session <code>{maskedOwnerId(ownerUserId)}</code>.
         </p>
       </div>
+      {error ? (
+        <div className="error-note" role="alert">
+          {error}
+        </div>
+      ) : null}
       <div className="dashboard-list">
         {checks.length ? (
           checks.map((check) => (

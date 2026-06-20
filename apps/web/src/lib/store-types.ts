@@ -104,6 +104,7 @@ export interface StoredResultSnapshot {
     headline: string;
     detail: string;
     safeStats: string[];
+    tone?: "green" | "yellow" | "red" | "neutral";
   };
   createdAt: string;
   deletedAt?: string;
