@@ -12,7 +12,8 @@
 
 ## Screenshot-Ready Routes
 
-Use the production web URL and capture these routes after seeding a check:
+These capture the dark editorial `Sayable.dc.html` UI (see `docs/design.md`). Use the
+production web URL and capture these routes after seeding a check:
 
 - `/` for the first-viewport create experience
 - `/checks/:hostToken/review` for host review, share controls, Premium, and themes
