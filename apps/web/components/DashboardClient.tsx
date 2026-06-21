@@ -15,13 +15,6 @@ interface DashboardCheck {
   resultsUrl: string;
 }
 
-function maskedOwnerId(ownerUserId: string): string {
-  if (!ownerUserId) {
-    return "loading";
-  }
-  return `${ownerUserId.slice(0, 10)}...${ownerUserId.slice(-6)}`;
-}
-
 function prettyKind(activityType: string): string {
   return activityType.replace(/[_-]+/g, " ").trim();
 }
@@ -39,7 +32,6 @@ function statusTone(status: string): string {
 
 export default function DashboardClient() {
   const [checks, setChecks] = useState<DashboardCheck[]>([]);
-  const [ownerUserId, setOwnerUserId] = useState("");
   const [error, setError] = useState("");
   // Distinguish "not signed in yet" (a calm landing state) from a real load
   // failure, so visiting /dashboard signed-out never shows a scary network error
@@ -72,7 +64,6 @@ export default function DashboardClient() {
           setStatus("signedOut");
           return;
         }
-        setOwnerUserId(session.ownerUserId);
         setStatus("ready");
         await loadChecks();
       })
@@ -83,8 +74,7 @@ export default function DashboardClient() {
     setSigningIn(true);
     setError("");
     try {
-      const session = await getHostSession();
-      setOwnerUserId(session.ownerUserId);
+      await getHostSession();
       setStatus("ready");
       await loadChecks();
     } catch {
@@ -121,7 +111,7 @@ export default function DashboardClient() {
           </h1>
           <p className="muted" style={{ fontSize: "1.12rem", margin: "14px 0 0", maxWidth: "52ch" }}>
             {status === "ready" ? (
-              <>Everything you&apos;ve floated to the group. Session <code>{maskedOwnerId(ownerUserId)}</code>.</>
+              <>Everything you&apos;ve floated to the group, saved to your account.</>
             ) : (
               <>Everything you&apos;ve floated to the group, saved in one place.</>
             )}

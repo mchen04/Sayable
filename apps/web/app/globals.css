@@ -810,6 +810,54 @@ input[type="checkbox"] {
   box-shadow: 0 10px 22px -14px var(--sage);
 }
 
+/* Optional constraints render as compact wrap-chips (not stacked checkbox rows)
+   so the guest form stays short and low-pressure rather than survey-like. */
+.constraint-chip {
+  cursor: pointer;
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: var(--radius-pill);
+  font-family: var(--type-body);
+  font-size: 0.95rem;
+  font-weight: 700;
+  border: 2px solid var(--paper-line);
+  background: var(--paper-2);
+  color: #3f392c;
+  transition: all 0.16s ease;
+}
+
+.constraint-chip[data-selected] {
+  border-color: #2e7d4f;
+  background: #e9f3ec;
+  color: #1c5c3a;
+}
+
+.constraint-chip:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Tap-to-reveal affordance for the optional private note. */
+.note-toggle {
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 0 2px;
+  background: transparent;
+  border: none;
+  color: var(--muted-ink);
+  font-family: var(--type-body);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.note-toggle:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .choice strong,
 .constraint-row strong {
   display: block;

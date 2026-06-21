@@ -49,6 +49,9 @@ export default function GuestCheckClient({
   const [responseLoadFailed, setResponseLoadFailed] = useState(false);
   const [isLoading, setIsLoading] = useState(!initialData);
   const [isSaving, setIsSaving] = useState(false);
+  // The private note is optional and tucked behind a disclosure so the form reads
+  // as two quick taps, not a survey. Auto-opens when a saved note loads (edit mode).
+  const [showNote, setShowNote] = useState(false);
 
   const storageKey = `sayable_response_${guestToken}`;
   const nonceKey = `sayable_guest_nonce_${guestToken}`;
@@ -84,6 +87,9 @@ export default function GuestCheckClient({
           constraintIds: payload.constraintIds,
           privateNote: payload.privateNote || ""
         });
+        if (payload.privateNote) {
+          setShowNote(true);
+        }
         setResponseLoadFailed(false);
       } catch {
         setResponseLoadFailed(true);
@@ -288,6 +294,15 @@ export default function GuestCheckClient({
                   </h2>
                 </div>
 
+                {/* The intro column carries this notice on desktop, but it is
+                    display:none on phones — so the guest must see why the form is
+                    locked here, inside the phone frame, or it is a silent dead-end. */}
+                {unavailable ? (
+                  <div className="error-note" role="alert">
+                    This Comfort Check is {data.check.status}. Your answers cannot be changed from this link.
+                  </div>
+                ) : null}
+
                 {responseToken && responseLoadFailed ? (
                   <div className="status-note" role="status">
                     We couldn&apos;t reload your previous answer — please review your selections before sending, or your saved
@@ -339,34 +354,46 @@ export default function GuestCheckClient({
 
                 <fieldset className="question-group" disabled={unavailable} style={{ border: "none", padding: 0, background: "transparent" }}>
                   <legend className="legend question-title">{data.check.draft.questions[2]?.prompt || "Anything that would make this easier?"}</legend>
-                  <div style={{ fontSize: "0.82rem", color: "var(--muted-ink-2)", marginBottom: 4 }}>Tap any that apply — totally optional.</div>
-                  {data.check.draft.constraints.map((constraint) => (
-                    <label className="choice" key={constraint.id}>
-                      <input
-                        type="checkbox"
-                        checked={form.constraintIds.includes(constraint.id)}
-                        onChange={() => toggleConstraint(constraint.id)}
-                      />
-                      <span>
-                        <strong>{constraint.label}</strong>
-                      </span>
-                    </label>
-                  ))}
+                  <div style={{ fontSize: "0.82rem", color: "var(--muted-ink-2)", marginBottom: 10 }}>Tap any that apply — totally optional.</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 9 }}>
+                    {data.check.draft.constraints.map((constraint) => {
+                      const selected = form.constraintIds.includes(constraint.id);
+                      return (
+                        <button
+                          key={constraint.id}
+                          type="button"
+                          className="constraint-chip"
+                          aria-pressed={selected}
+                          data-selected={selected || undefined}
+                          disabled={unavailable}
+                          onClick={() => toggleConstraint(constraint.id)}
+                        >
+                          {constraint.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </fieldset>
 
-                <div className="field">
-                  <label htmlFor="private-note">
-                    A private note <span style={{ fontWeight: 500, color: "var(--muted-ink-2)", fontFamily: "var(--type-body)" }}>(only you)</span>
-                  </label>
-                  <textarea
-                    id="private-note"
-                    disabled={unavailable}
-                    value={form.privateNote}
-                    maxLength={500}
-                    onChange={(event) => setForm((current) => ({ ...current, privateNote: event.target.value }))}
-                    placeholder="Just for you — the host never sees this. Saved with your response so you can recall it when you edit."
-                  />
-                </div>
+                {showNote ? (
+                  <div className="field">
+                    <label htmlFor="private-note">
+                      A private note <span style={{ fontWeight: 500, color: "var(--muted-ink-2)", fontFamily: "var(--type-body)" }}>(only you)</span>
+                    </label>
+                    <textarea
+                      id="private-note"
+                      disabled={unavailable}
+                      value={form.privateNote}
+                      maxLength={500}
+                      onChange={(event) => setForm((current) => ({ ...current, privateNote: event.target.value }))}
+                      placeholder="Just for you — the host never sees this. Saved with your response so you can recall it when you edit."
+                    />
+                  </div>
+                ) : (
+                  <button type="button" className="note-toggle" onClick={() => setShowNote(true)} disabled={unavailable}>
+                    ＋ Add a private note <span style={{ fontWeight: 500 }}>(only you)</span>
+                  </button>
+                )}
 
                 {message ? (
                   <div className="success-note" role="status" aria-live="polite">

@@ -68,20 +68,23 @@ function svgTemplate(input: {
 }) {
   const title = escapeSvg(input.title).slice(0, 100);
   const eyebrow = escapeSvg(input.eyebrow).slice(0, 80);
-  const titleLines = svgTextLines(wrapWords(input.title, 27, 2), 96, 336, 68);
-  const detailLines = svgTextLines(wrapWords(input.detail, 56, 2), 100, 452, 42);
+  const accent = input.accent;
+  const titleLines = svgTextLines(wrapWords(input.title, 27, 2), 96, 320, 68);
+  const detailLines = svgTextLines(wrapWords(input.detail, 56, 2), 96, 452, 42);
+  // Dark-editorial share card: dark page + dark inner panel + the check's accent
+  // and cream text. This matches every in-app surface (one product, not a
+  // patchwork) and keeps text high-contrast for any per-check accent theme.
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-label="${title}">
-  <rect width="1200" height="630" fill="${input.paper}"/>
-  <rect x="56" y="56" width="1088" height="518" rx="28" fill="#fffefb" stroke="${input.soft}" stroke-width="4"/>
-  <rect x="88" y="88" width="1024" height="164" rx="22" fill="${input.accent}"/>
-  <circle cx="1010" cy="170" r="68" fill="${input.soft}" opacity="0.72"/>
-  <circle cx="930" cy="120" r="34" fill="#ffffff" opacity="0.28"/>
-  <text x="128" y="160" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="800">Sayable</text>
-  <text x="128" y="212" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="28">${eyebrow}</text>
-  <text fill="${input.ink}" font-family="Arial, Helvetica, sans-serif" font-size="60" font-weight="900">${titleLines}</text>
-  <text fill="#56635f" font-family="Arial, Helvetica, sans-serif" font-size="32">${detailLines}</text>
-  <text x="100" y="550" fill="${input.accent}" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="800">Private answers. Group-safe result. No guest account needed.</text>
+  <rect width="1200" height="630" fill="#15120D"/>
+  <rect x="56" y="56" width="1088" height="518" rx="28" fill="#1C1711" stroke="rgba(247,241,228,0.10)" stroke-width="2"/>
+  <circle cx="1052" cy="150" r="96" fill="${accent}" opacity="0.16"/>
+  <circle cx="980" cy="96" r="40" fill="${accent}" opacity="0.10"/>
+  <text x="96" y="150" fill="#F7F1E4" font-family="Arial, Helvetica, sans-serif" font-size="40" font-weight="800">Sayable <tspan fill="${accent}">✦</tspan></text>
+  <text x="96" y="200" fill="${accent}" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700" letter-spacing="0.5">${eyebrow}</text>
+  <text fill="#F7F1E4" font-family="Arial, Helvetica, sans-serif" font-size="60" font-weight="900">${titleLines}</text>
+  <text fill="#C9C0AE" font-family="Arial, Helvetica, sans-serif" font-size="32">${detailLines}</text>
+  <text x="96" y="544" fill="${accent}" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="800">Private answers. Group-safe result. No guest account needed.</text>
 </svg>`;
 }
 

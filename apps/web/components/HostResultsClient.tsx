@@ -474,7 +474,7 @@ export default function HostResultsClient({ endpoints, initialData = null }: Hos
               <div className="status-note">
                 {data.result.isPrivacySuppressed
                   ? "Constraint details stay hidden until the privacy threshold is met."
-                  : "No major constraints selected yet."}
+                  : "Nothing stood out across enough people yet."}
               </div>
             )}
           </div>

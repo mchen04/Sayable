@@ -789,12 +789,13 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
         <div className="tool-panel stack">
           <span className="pill">
             <Crown size={15} aria-hidden />
-            $4.99 one-time
+            {data.check.plan === "premium" ? "Unlocked" : "$4.99 one-time"}
           </span>
           <h3>Premium Check</h3>
           <p className="muted">
-            Unlock 100 responses, 10 custom constraints, 180-day retention, premium themes, custom color/icon, and export-ready
-            summaries.
+            {data.check.plan === "premium"
+              ? "100 responses, 10 custom constraints, 180-day retention, premium themes, and custom color/icon are unlocked for this check."
+              : "Unlock 100 responses, 10 custom constraints, 180-day retention, premium themes, custom color/icon, and export-ready summaries."}
           </p>
           {data.check.plan === "premium" ? (
             <div className="success-note" role="status">
