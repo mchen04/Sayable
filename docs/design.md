@@ -15,8 +15,10 @@ look applied over the existing routes and the deterministic `packages/core` engi
   (body), Instrument Serif (italic accent words), JetBrains Mono (uppercase micro-labels).
   Exposed as `--type-display/body/serif/mono`; `next/font` self-hosts with `display:swap`.
 - The class API (`.card`, `.tool-panel`, `.btn-*`, `.pill`, `.verdict-chip`, `.gauge`,
-  `.dock`, `.editorial-row`, `.snapshot`, etc.) is shared across all pages and respects
-  `prefers-reduced-motion`.
+  `.dock`, `.editorial-row`, `.snapshot`, `.constraint-chip`, `.note-toggle`, etc.) is shared
+  across all pages and respects `prefers-reduced-motion`. `.constraint-chip` is the cream
+  toggle-pill used for the guest's optional constraints (selected via `[data-selected]`);
+  `.note-toggle` is the tap-to-reveal affordance for the optional private note.
 
 ## Screen → route mapping
 
