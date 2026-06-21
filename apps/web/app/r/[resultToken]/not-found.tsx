@@ -29,14 +29,16 @@ export const metadata: Metadata = {
 
 export default function ResultNotFound() {
   return (
-    <main className="page-shell section-band stack">
-      <span className="pill">Sayable result unavailable</span>
-      <h1 className="compact-title">This public result is no longer available.</h1>
-      <p className="muted">
+    <main className="page-shell section-band stack" style={{ paddingTop: "clamp(20px,3vw,40px)" }}>
+      <div className="eyebrow">404 ✦ result unavailable</div>
+      <h1 className="compact-title">
+        This public result is <span className="serif serif-lime">no longer</span> available.
+      </h1>
+      <p className="muted" style={{ fontSize: "1.12rem", maxWidth: "54ch" }}>
         Result links are removed when a Comfort Check is deleted or when changed responses make the snapshot no longer
         privacy-safe.
       </p>
-      <Link className="btn" href="/">
+      <Link className="btn btn-primary" href="/">
         Create a new Comfort Check
       </Link>
     </main>

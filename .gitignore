@@ -16,3 +16,7 @@ apps/mobile/.expo/
 apps/mobile/web-build/
 apps/mobile/dist/
 supabase/.temp/
+supabase/.branches/
+
+# Transient hardening/validation run artifacts (never commit — see docs/testing.md)
+validation/

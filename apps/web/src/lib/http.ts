@@ -8,6 +8,7 @@ type Bucket = {
 };
 
 const buckets = new Map<string, Bucket>();
+let lastBucketPruneAt = 0;
 
 export function json(data: unknown, status = 200): NextResponse {
   return NextResponse.json(data, {
@@ -43,6 +44,16 @@ export function enforceRateLimit(
 ): void {
   const key = `${route}:${fingerprint(request)}`;
   const now = Date.now();
+  // Reclaim expired buckets at most once a minute, on any code path, so this
+  // in-memory Map can't accumulate stale (route,ip) keys over a long-lived process.
+  if (now - lastBucketPruneAt > 60_000) {
+    lastBucketPruneAt = now;
+    for (const [k, b] of buckets) {
+      if (b.resetAt < now) {
+        buckets.delete(k);
+      }
+    }
+  }
   const bucket = buckets.get(key);
   if (!bucket || bucket.resetAt < now) {
     buckets.set(key, { count: 1, resetAt: now + options.windowMs });

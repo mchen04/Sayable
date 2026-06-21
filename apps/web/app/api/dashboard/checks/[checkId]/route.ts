@@ -25,11 +25,10 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     const session = await requireHostSession(request);
     const input = await parseJson(request, updateCheckSchema);
     const { checkId } = await params;
-    const check = await updateOwnerCheck(checkId, session.sub, input);
+    const { check, result } = await updateOwnerCheck(checkId, session.sub, input);
     if (check.status === "deleted") {
       return json({ check: serializeHostCheck(check) });
     }
-    const { result } = await getOwnerCheck(check.id, session.sub);
     return json({ check: serializeHostCheck(check), result });
   } catch (error) {
     return handleApiError(error, request);

@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
-import type { CSSProperties } from "react";
+import { cache } from "react";
 import { notFound } from "next/navigation";
-import { getTheme, themeIconGlyph } from "@sayable/core";
 import { getSnapshot, publicBaseUrl } from "@/src/lib/store";
+
+// Dedupe the store read across generateMetadata() + the page body within one
+// request (Next only dedupes fetch(), not arbitrary async calls).
+const loadSnapshot = cache((token: string) => getSnapshot(token));
 
 type PageProps = { params: Promise<{ resultToken: string }> };
 const unavailableDescription = "This Sayable result link is expired, deleted, or no longer privacy-safe.";
@@ -15,7 +18,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const image = `/api/og/check/${resultToken}`;
   const canonicalUrl = `${publicBaseUrl()}/r/${resultToken}`;
   try {
-    const { check, result } = await getSnapshot(resultToken);
+    const { check, result } = await loadSnapshot(resultToken);
     const description = `${check.draft.activityLabel} Comfort Check result - ${result.publicSnapshot.detail}`;
     return {
       title: `${check.title} Comfort Check result`,
@@ -71,29 +74,17 @@ export default async function ResultSnapshotPage({ params }: PageProps) {
   const { resultToken } = await params;
   let snapshot: Awaited<ReturnType<typeof getSnapshot>>;
   try {
-    snapshot = await getSnapshot(resultToken);
+    snapshot = await loadSnapshot(resultToken);
   } catch {
     notFound();
   }
 
   const { check, result } = snapshot;
-  const theme = getTheme(check.themeId);
-  const themeIcon = themeIconGlyph(check.customTheme?.icon || theme.icon);
   return (
-    <main
-      className="page-shell section-band"
-      style={
-        {
-          "--accent": check.customTheme?.accent || theme.accent,
-          "--soft": theme.soft,
-          "--paper": theme.paper,
-          "--ink": theme.ink
-        } as CSSProperties
-      }
-    >
+    <main className="page-shell section-band rise">
       <section className="snapshot stack">
         <div className="theme-icon-badge" aria-hidden>
-          {themeIcon}
+          ✦
         </div>
         <span className="pill">Sayable public-safe result</span>
         <h1 className="compact-title">{check.title}</h1>

@@ -21,13 +21,15 @@ export const metadata: Metadata = {
 
 export default function NotFound() {
   return (
-    <main className="page-shell section-band stack">
-      <span className="pill">Sayable link unavailable</span>
-      <h1 className="compact-title">This Comfort Check link is no longer available.</h1>
-      <p className="muted">
+    <main className="page-shell section-band stack" style={{ paddingTop: "clamp(20px,3vw,40px)" }}>
+      <div className="eyebrow">404 ✦ link unavailable</div>
+      <h1 className="compact-title">
+        This Comfort Check link is <span className="serif serif-lime">no longer</span> available.
+      </h1>
+      <p className="muted" style={{ fontSize: "1.12rem", maxWidth: "52ch" }}>
         It may have expired, been deleted, or been replaced with a newer privacy-safe share link.
       </p>
-      <Link className="btn" href="/">
+      <Link className="btn btn-primary" href="/">
         Create a new Comfort Check
       </Link>
     </main>

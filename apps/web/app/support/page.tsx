@@ -1,12 +1,17 @@
 export default function SupportPage() {
   const email = process.env.SUPPORT_EMAIL || "support@sayable.app";
   return (
-    <main className="page-shell section-band stack">
-      <span className="pill">Support</span>
-      <h1 className="compact-title">Contact Sayable</h1>
-      <p>
+    <main className="page-shell section-band stack" style={{ paddingTop: "clamp(20px,3vw,40px)" }}>
+      <div className="eyebrow">We&apos;re here ✦ support</div>
+      <h1 className="compact-title">
+        Contact <span className="serif serif-lime">Sayable</span>
+      </h1>
+      <p className="muted" style={{ fontSize: "1.12rem", maxWidth: "60ch" }}>
         For help with a Comfort Check, account deletion, payment smoke testing, abuse reports, or data questions, contact{" "}
-        <a href={`mailto:${email}`}>{email}</a>.
+        <a href={`mailto:${email}`} style={{ color: "var(--lime)", fontWeight: 700 }}>
+          {email}
+        </a>
+        .
       </p>
       <div className="tool-panel stack">
         <h2>Useful details</h2>

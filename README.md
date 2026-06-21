@@ -4,11 +4,11 @@ Sayable is an iMessage-first Comfort Check MVP. Hosts create a check without log
 
 ## Workspace
 
-- `apps/web` - Next.js web/link layer, API routes, landing page, guest flow, host fallback, legal/trust pages, mock Premium Check flow, and operator route.
+- `apps/web` - Next.js web/link layer, API routes, landing page, guest flow, host fallback, legal/trust pages, mock Premium Check flow, and operator route. UI follows the dark editorial `Sayable.dc.html` design (see `docs/design.md`).
 - `apps/mobile` - Expo React Native host shell using Expo Router, SecureStore, native share, and the web API.
 - `packages/core` - deterministic no-LLM draft/result/theme/limit engine plus stress tests.
 - `supabase/migrations` - Postgres schema and RLS contract.
-- `docs` - setup, security, testing, operations, and validation notes.
+- `docs` - setup, security/privacy, testing, operations, core logic, design, and launch notes.
 
 ## Local setup
 
@@ -53,6 +53,6 @@ Local smoke defaults to `SAYABLE_STORE_BACKEND=file`, writing `.sayable-data/sto
 
 - Google OAuth is feature-flagged. Local demo browser claims work only with `SAYABLE_DEMO_AUTH_ENABLED=true`; production should leave demo auth disabled and use Supabase Auth.
 - Stripe Checkout is behind an adapter boundary. `STRIPE_MODE=mock` supports local smoke outcomes; `STRIPE_MODE=test` creates Checkout Sessions when test keys are configured and unlocks Premium only from the verified webhook path.
-- Independent adversarial convergence loops and `/criticality-loop` are required gates. Treat any old local pass/fail records as stale; fresh validation evidence must be generated for each hardening run and recorded in `validation/fresh-hardening-report.md`.
+- Independent adversarial convergence loops and `/criticality-loop` are required gates. Treat any old local pass/fail records as stale; fresh validation evidence must be generated for each hardening run. These run reports are transient artifacts — do not commit them to the repo.
 
 Launch packaging, production env, deployment, and screenshot capture notes are in `docs/launch.md`.

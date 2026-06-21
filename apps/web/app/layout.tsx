@@ -1,7 +1,35 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import { Bricolage_Grotesque, Hanken_Grotesk, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 import WebAnalytics from "@/components/WebAnalytics";
+import DockNav from "@/components/DockNav";
 import "./globals.css";
+
+const display = Bricolage_Grotesque({
+  subsets: ["latin"],
+  weight: ["600", "700", "800"],
+  variable: "--font-display",
+  display: "swap"
+});
+const body = Hanken_Grotesk({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-body",
+  display: "swap"
+});
+const serif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: ["400"],
+  style: ["italic"],
+  variable: "--font-serif",
+  display: "swap"
+});
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["600"],
+  variable: "--font-mono",
+  display: "swap"
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_WEB_BASE_URL || "http://localhost:3000"),
@@ -32,24 +60,23 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#fbf8f2"
+  themeColor: "#15120D"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${display.variable} ${body.variable} ${serif.variable} ${mono.variable}`}>
       <body>
         <WebAnalytics />
+        <div className="grain" aria-hidden />
         <header className="site-header">
           <Link href="/" className="brand-mark" aria-label="Sayable home">
-            <span className="brand-glyph">S</span>
-            <span>Sayable</span>
+            <span className="brand-word">Sayable</span>
+            <span className="brand-star" aria-hidden>
+              ✦
+            </span>
           </Link>
-          <nav aria-label="Primary">
-            <Link href="/dashboard">Dashboard</Link>
-            <Link href="/privacy">Privacy</Link>
-            <Link href="/support">Support</Link>
-          </nav>
+          <span className="brand-badge">no login, ever ✦</span>
         </header>
         {children}
         <footer className="page-shell footer-links">
@@ -58,6 +85,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Link href="/support">Support</Link>
           <Link href="/delete">Delete my data</Link>
         </footer>
+        <DockNav />
       </body>
     </html>
   );

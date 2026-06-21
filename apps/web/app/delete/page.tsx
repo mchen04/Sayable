@@ -3,9 +3,14 @@ import DeleteAccountClient from "@/components/DeleteAccountClient";
 
 export default function DeletePage() {
   return (
-    <main className="page-shell section-band stack">
-      <span className="pill">Data rights</span>
-      <h1 className="compact-title">Deletion paths</h1>
+    <main className="page-shell section-band stack" style={{ paddingTop: "clamp(20px,3vw,40px)" }}>
+      <div className="eyebrow">Data rights ✦ delete</div>
+      <h1 className="compact-title">
+        Deletion <span className="serif serif-lime">paths</span>
+      </h1>
+      <p className="muted" style={{ fontSize: "1.12rem", maxWidth: "60ch" }}>
+        Every Comfort Check can be removed — pick the path that matches who you are.
+      </p>
       <div className="grid-three">
         <div className="tool-panel stack">
           <h2>Guest response</h2>

@@ -1,9 +1,11 @@
 export default function AdminPage() {
   return (
-    <main className="page-shell section-band stack">
-      <span className="pill">Operator path</span>
-      <h1 className="compact-title">Admin investigation</h1>
-      <p>
+    <main className="page-shell section-band stack" style={{ paddingTop: "clamp(20px,3vw,40px)" }}>
+      <div className="eyebrow">Operator path ✦ admin</div>
+      <h1 className="compact-title">
+        Admin <span className="serif serif-lime">investigation</span>
+      </h1>
+      <p className="muted" style={{ fontSize: "1.12rem", maxWidth: "62ch" }}>
         The MVP exposes <code>GET /api/admin</code> with <code>x-sayable-admin-token</code> for local operator checks. It
         returns redacted recent checks, responses, purchases, abuse events, audit logs, and analytics events.
       </p>

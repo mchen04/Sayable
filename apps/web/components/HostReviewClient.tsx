@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import {
   type ComfortConstraint,
@@ -18,7 +18,6 @@ import {
   ArrowRight,
   Clipboard,
   Crown,
-  MessageCircle,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -26,7 +25,8 @@ import {
   Share2,
   Trash2
 } from "lucide-react";
-import { authHeaders, copyText, postAnalytics } from "./client-utils";
+import { authHeaders } from "./client-utils";
+import { copyText, postAnalytics } from "./client-io";
 import type { HostReviewEndpoints } from "./host-endpoints";
 
 interface HostCheck {
@@ -71,6 +71,7 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
   const [newConstraint, setNewConstraint] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const feedbackRef = useRef<HTMLDivElement>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [customAccent, setCustomAccent] = useState("#2f6f5e");
   const [customIcon, setCustomIcon] = useState("sparkle");
@@ -117,11 +118,27 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
   }, [endpoints.apiPath, requestHeaders]);
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void load();
-    }, 0);
-    return () => window.clearTimeout(timer);
+    // Direct call; the old setTimeout(0)+clearTimeout idiom was cancelled by React 19
+    // Strict Mode in dev, leaving the page stuck on "Opening host link...".
+    let cancelled = false;
+    void (async () => {
+      await load();
+      if (cancelled) return;
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [load]);
+
+  // Actions on this screen are spread across the page; bring the save/share
+  // feedback into view when it changes so it isn't missed far below the fold.
+  useEffect(() => {
+    if (message || error) {
+      const reduce =
+        typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      feedbackRef.current?.scrollIntoView({ block: "nearest", behavior: reduce ? "auto" : "smooth" });
+    }
+  }, [message, error]);
 
   async function patch(body: unknown, success: string) {
     setIsSaving(true);
@@ -366,7 +383,7 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
 
   if (error && !data) {
     return (
-      <main className="page-shell section-band">
+      <main className="page-shell section-band stack">
         <div className="error-note" role="alert">{error}</div>
         <Link className="btn btn-primary" href="/">
           Create a new Comfort Check
@@ -384,7 +401,6 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
   }
 
   const accent = data.check.customTheme?.accent || theme.accent;
-  const themeIcon = themeIconGlyph(data.check.customTheme?.icon || theme.icon);
   const hostErrorId = error ? "host-review-error" : undefined;
   const fieldErrorProps = (id: string) => ({
     "aria-invalid": invalidFieldId === id,
@@ -392,26 +408,31 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
   });
 
   return (
-    <main
-      className="page-shell section-band"
-      style={
-        {
-          "--accent": accent,
-          "--soft": theme.soft,
-          "--paper": theme.paper,
-          "--ink": theme.ink
-        } as CSSProperties
-      }
-    >
-      <div className="grid-two review-grid">
-        <section className="stack">
-          <span className="pill">{data.check.plan === "premium" ? "Premium Check" : "Free Comfort Check"}</span>
-          <h1 className="compact-title">{data.check.title}</h1>
-          <p className="muted">{data.check.draft.resultIntro}</p>
-          <div className="status-note">
-            Ready to share. Sayable already drafted the guest link, privacy copy, and result rules; editing is optional.
-          </div>
+    <main className="page-shell section-band rise">
+      <div className="eyebrow">{data.check.plan === "premium" ? "✦ Premium Check" : "✦ Free Comfort Check"}</div>
+      <h1
+        style={{
+          fontFamily: "var(--type-display)",
+          fontWeight: 800,
+          fontSize: "clamp(2.4rem,5.5vw,4.2rem)",
+          lineHeight: 0.92,
+          letterSpacing: "-0.035em",
+          overflowWrap: "anywhere",
+          margin: "14px 0 0"
+        }}
+      >
+        {data.check.title} <span className="serif serif-lime">is ready</span>
+      </h1>
+      <p className="muted" style={{ fontSize: "1.12rem", margin: "14px 0 0", maxWidth: "54ch" }}>
+        {data.check.draft.resultIntro}
+      </p>
+      <div className="status-note" style={{ margin: "20px 0 0", maxWidth: "60ch" }}>
+        ✦ Ready to share. Sayable already drafted the guest link, privacy copy, and result rules; editing is optional.
+      </div>
 
+      <div className="grid-two review-grid" style={{ marginTop: 30, alignItems: "start" }}>
+        <section className="stack">
+          <div className="eyebrow" style={{ marginBottom: 2 }}>✦ optional fine-tuning</div>
           <details className="tool-panel stack">
             <summary>
               <span className="summary-copy">
@@ -526,28 +547,62 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
           </details>
         </section>
 
-        <aside className="stack">
-          <div className="message-preview">
-            <div className="preview-art">
-              <div className="theme-icon-badge" aria-hidden>
-                {themeIcon}
-              </div>
-              <span className="pill">Link preview</span>
-              <h2>{data.check.title}</h2>
-              <p>Comfort Check - private answers, group-safe result.</p>
+        <aside className="stack" style={{ position: "sticky", top: 24 }}>
+          <div
+            style={{
+              fontFamily: "var(--type-mono)",
+              fontWeight: 600,
+              fontSize: 12,
+              letterSpacing: "0.05em",
+              textTransform: "uppercase",
+              color: "#8e8675"
+            }}
+          >
+            What lands in the chat
+          </div>
+          <div
+            className="share-card"
+            style={{ transform: "rotate(2deg)", "--theme-accent": accent } as CSSProperties}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+              <span
+                className="theme-icon-badge"
+                aria-hidden
+                style={{ margin: 0, background: "var(--theme-accent)", borderColor: "transparent", color: "#fff" }}
+              >
+                {/* monochrome ✦ to match the public /r/ snapshot this previews */}
+                ✦
+              </span>
+              <span className="verdict-chip tone-green" style={{ fontSize: "0.74rem", padding: "5px 11px" }}>
+                ✦ Private
+              </span>
             </div>
-            <div className="preview-card">
-              <strong>{data.check.draft.activityLabel}</strong>
-              <span className="muted">{data.check.draft.shareText}</span>
+            <div className="chat-bubble">
+              <div className="title">{data.check.title}</div>
+              <div style={{ fontSize: "0.88rem", color: "var(--muted-ink)", lineHeight: 1.45 }}>
+                {data.check.draft.shareText}
+              </div>
+              <div className="chat-url">✦ Comfort Check — private answers, group-safe result</div>
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+              <span className="verdict-chip tone-green" style={{ fontSize: "0.78rem", padding: "6px 11px" }}>
+                I&apos;m in
+              </span>
+              <span className="verdict-chip tone-yellow" style={{ fontSize: "0.78rem", padding: "6px 11px" }}>
+                Maybe
+              </span>
+              <span className="verdict-chip tone-red" style={{ fontSize: "0.78rem", padding: "6px 11px" }}>
+                I&apos;m out
+              </span>
             </div>
           </div>
 
           <div className="tool-panel stack">
-            <h2>Share</h2>
+            <h2 style={{ fontSize: "1.3rem", margin: 0 }}>Share</h2>
             <p className="muted">Host links stay private. Share this guest link anywhere.</p>
             <div className="button-row">
               <button className="btn btn-primary" type="button" onClick={shareGuestLink}>
-                <MessageCircle size={18} aria-hidden />
+                <Share2 size={18} aria-hidden />
                 Share in Messages
               </button>
               <button className="btn btn-secondary" type="button" onClick={copyGuestLink}>
@@ -568,10 +623,10 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
           </div>
 
           <div className="tool-panel stack">
-            <h2>Save</h2>
+            <h2 style={{ fontSize: "1.3rem", margin: 0 }}>Save</h2>
             {data.check.ownerUserId ? (
               <div className="success-note" role="status">
-                Saved to your host dashboard.
+                ✦ Saved to your host dashboard.
               </div>
             ) : (
               <>
@@ -655,8 +710,11 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
 
       <section className="section-band stack">
         <div className="section-heading">
-          <h2>Theme preview</h2>
-          <p>The selected theme carries across guest link, host result, snapshot, and preview imagery.</p>
+          <div className="eyebrow">✦ pick a look</div>
+          <h2>
+            Choose a <span className="serif serif-lime">theme</span>
+          </h2>
+          <p className="muted">The selected theme styles your host result accent and the shareable link preview imagery. The guest answer link and public snapshot keep Sayable&apos;s clean, focused layout.</p>
         </div>
         <div className="theme-grid">
           {THEMES.map((item) => {
@@ -733,14 +791,14 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
             <Crown size={15} aria-hidden />
             $4.99 one-time
           </span>
-          <h2>Premium Check</h2>
+          <h3>Premium Check</h3>
           <p className="muted">
             Unlock 100 responses, 10 custom constraints, 180-day retention, premium themes, custom color/icon, and export-ready
             summaries.
           </p>
           {data.check.plan === "premium" ? (
             <div className="success-note" role="status">
-              Premium is unlocked for this Comfort Check.
+              ✦ Premium is unlocked for this Comfort Check.
             </div>
           ) : (
             <div className="button-row">
@@ -765,9 +823,24 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
           )}
         </div>
         <div className="result-panel stack">
-          <h2>Current signal</h2>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <span
+              style={{
+                fontFamily: "var(--type-mono)",
+                fontSize: 11,
+                fontWeight: 600,
+                letterSpacing: "0.05em",
+                textTransform: "uppercase",
+                color: "var(--muted-ink-2)"
+              }}
+            >
+              Current signal
+            </span>
+            <span className={`verdict-chip tone-${data.result.bestFit.tone}`} style={{ fontSize: "0.85rem", padding: "6px 12px" }}>
+              {data.result.bestFit.label}
+            </span>
+          </div>
           <p className="muted">{data.result.responseCount} responses</p>
-          <strong>{data.result.bestFit.label}</strong>
           <span className="muted">{data.result.bestFit.detail}</span>
           <Link className="btn btn-secondary" href={endpoints.resultsPath}>
             View host results
@@ -776,16 +849,18 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
         </div>
       </section>
 
-      {message ? (
-        <div className="success-note" role="status" aria-live="polite">
-          {message}
-        </div>
-      ) : null}
-      {error ? (
-        <div className="error-note" id="host-review-error" role="alert">
-          {error}
-        </div>
-      ) : null}
+      <div ref={feedbackRef}>
+        {message ? (
+          <div className="success-note" role="status" aria-live="polite">
+            {message}
+          </div>
+        ) : null}
+        {error ? (
+          <div className="error-note" id="host-review-error" role="alert">
+            {error}
+          </div>
+        ) : null}
+      </div>
     </main>
   );
 }

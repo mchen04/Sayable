@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     const status = body.action === "close" ? "closed" : "deleted";
     const check = body.checkId
       ? await adminUpdateCheckById(body.checkId, status)
-      : await updateHostCheck(body.hostToken ?? "", { status });
+      : (await updateHostCheck(body.hostToken ?? "", { status })).check;
     if (body.hostToken) {
       logAudit(`admin_${body.action}`, "Admin operator changed check status with a host token.", "admin", check.id);
     }

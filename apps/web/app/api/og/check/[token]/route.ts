@@ -98,12 +98,15 @@ function unavailablePayload(detail = "This link is expired, deleted, or no longe
   };
 }
 
-function svgResponse(payload: Parameters<typeof svgTemplate>[0], status = 200): Response {
+function svgResponse(payload: Parameters<typeof svgTemplate>[0], status = 200, cacheable = false): Response {
   // OG preview images are public, non-sensitive, and hammered by link-unfurl
-  // crawlers. Let CDNs/crawlers cache successful images so each scrape does not
-  // trigger a full store read; keep error/throttle responses uncacheable.
+  // crawlers. Let CDNs/crawlers cache images ONLY for live, currently-valid
+  // snapshots so each scrape does not trigger a full store read. Unavailable /
+  // revoked / expired placeholders and error/throttle responses stay uncacheable
+  // so a host's revocation takes effect promptly (no stale-after-revocation window),
+  // and the cacheable window is kept short for the same reason.
   const cacheControl =
-    status === 200 ? "public, max-age=300, s-maxage=600, stale-while-revalidate=86400" : "no-store";
+    cacheable && status === 200 ? "public, max-age=60, s-maxage=60, stale-while-revalidate=300" : "no-store";
   return new Response(svgTemplate(payload), {
     status,
     headers: {
@@ -117,6 +120,8 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
     enforceRateLimit(request, "og_preview", { limit: 120, windowMs: 60_000 });
     const { token } = await params;
+    // Generic default card is static + non-revocable, so it is safe to cache.
+    let cacheable = true;
     let payload = {
       title: "Comfort Check",
       eyebrow: "Private group-chat planning",
@@ -129,6 +134,8 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
         const preview = await getPreviewByToken(token);
         const theme = getTheme(preview.check.themeId);
         if (preview.kind === "result") {
+          // A published result snapshot is live + public-safe → cacheable.
+          cacheable = true;
           payload = {
             title: preview.check.title,
             eyebrow: `${preview.check.draft.activityLabel} Comfort Check result`,
@@ -138,6 +145,9 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
           };
         } else {
           const isActive = isActiveForPreview(preview.check);
+          // Only cache while the guest link is genuinely active; an expired /
+          // deleted / closed link must not be served stale after revocation.
+          cacheable = isActive;
           payload = {
             title: isActive ? preview.check.title : "Comfort Check unavailable",
             eyebrow: `${preview.check.draft.activityLabel} Comfort Check${isActive ? "" : " unavailable"}`,
@@ -150,11 +160,13 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
           };
         }
       } catch {
+        // Unknown / revoked token → never cache the unavailable placeholder.
+        cacheable = false;
         payload = unavailablePayload();
       }
     }
 
-    return svgResponse(payload);
+    return svgResponse(payload, 200, cacheable);
   } catch (error) {
     const status = error instanceof StoreError ? error.status : 500;
     const detail = status === 429 ? "Too many preview requests. Try again in a moment." : undefined;

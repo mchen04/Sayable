@@ -656,17 +656,32 @@ function applyHostCheckPatch(store: StoreFile, check: StoredCheck, patch: HostCh
   return check;
 }
 
-export function updateHostCheck(hostToken: string, patch: HostCheckPatch): Promise<StoredCheck> {
+// Return the recomputed result alongside the patched check, computed inside the
+// same mutateStore callback (the store is already in hand) — so PATCH handlers
+// don't pay a second whole-store read just to recompute the summary.
+function patchResult(store: StoreFile, check: StoredCheck) {
+  if (check.status === "deleted") {
+    return null;
+  }
+  return calculateResultSummary(
+    check.draft,
+    store.responses.filter((response) => response.checkId === check.id)
+  );
+}
+
+export function updateHostCheck(hostToken: string, patch: HostCheckPatch) {
   return mutateStore((store) => {
     const check = requireCheckByToken(store, hostToken, "hostTokenHash", "host", "Host link not found.");
-    return applyHostCheckPatch(store, check, patch);
+    const updated = applyHostCheckPatch(store, check, patch);
+    return { check: updated, result: patchResult(store, updated) };
   });
 }
 
-export function updateOwnerCheck(checkId: string, ownerUserId: string, patch: HostCheckPatch): Promise<StoredCheck> {
+export function updateOwnerCheck(checkId: string, ownerUserId: string, patch: HostCheckPatch) {
   return mutateStore((store) => {
     const check = requireOwnerCheck(store, checkId, ownerUserId);
-    return applyHostCheckPatch(store, check, patch);
+    const updated = applyHostCheckPatch(store, check, patch);
+    return { check: updated, result: patchResult(store, updated) };
   });
 }
 

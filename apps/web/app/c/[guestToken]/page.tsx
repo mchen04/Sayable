@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import GuestCheckClient from "@/components/GuestCheckClient";
 import { getPublicCheck, publicBaseUrl } from "@/src/lib/store";
+
+// Dedupe the whole-store read across generateMetadata() + the page body within
+// one request (Next only dedupes fetch(), not arbitrary async calls).
+const loadPublicCheck = cache((token: string) => getPublicCheck(token));
 
 type PageProps = { params: Promise<{ guestToken: string }> };
 
@@ -30,7 +35,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     }
   };
   try {
-    const { check } = await getPublicCheck(guestToken);
+    const { check } = await loadPublicCheck(guestToken);
     if (check.status !== "active") {
       const description = `${check.draft.activityLabel} Comfort Check is no longer accepting responses.`;
       return {
@@ -78,5 +83,26 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function GuestCheckPage({ params }: PageProps) {
   const { guestToken } = await params;
-  return <GuestCheckClient guestToken={guestToken} />;
+  // Seed the client with the check the server already loaded (same privacy-safe
+  // fields the guest API returns — never token hashes) so the page renders
+  // instantly with no client round-trip or loading flash on this shared link.
+  let initialData = null;
+  try {
+    const { check, responseCount } = await loadPublicCheck(guestToken);
+    initialData = {
+      check: {
+        title: check.title,
+        plan: check.plan,
+        status: check.status,
+        draft: check.draft,
+        themeId: check.themeId,
+        ...(check.customTheme ? { customTheme: check.customTheme } : {}),
+        expiresAt: check.expiresAt
+      },
+      responseCount
+    };
+  } catch {
+    initialData = null;
+  }
+  return <GuestCheckClient guestToken={guestToken} initialData={initialData} />;
 }

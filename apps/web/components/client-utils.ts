@@ -134,29 +134,5 @@ export async function existingAuthHeaders(): Promise<Record<string, string>> {
   };
 }
 
-export async function postAnalytics(name: string, context: Record<string, string | number | boolean | null> = {}) {
-  await fetch("/api/analytics", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, context })
-  }).catch(() => undefined);
-}
-
-export async function copyText(text: string): Promise<void> {
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-  const textArea = document.createElement("textarea");
-  textArea.value = text;
-  textArea.setAttribute("readonly", "");
-  textArea.style.position = "fixed";
-  textArea.style.left = "-9999px";
-  document.body.appendChild(textArea);
-  textArea.select();
-  const copied = document.execCommand("copy");
-  textArea.remove();
-  if (!copied) {
-    throw new Error("Clipboard is unavailable.");
-  }
-}
+// postAnalytics and copyText moved to ./client-io (Supabase-free) so always-on
+// consumers don't pull @supabase/supabase-js into first-load JS.

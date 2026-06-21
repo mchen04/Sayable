@@ -144,8 +144,8 @@ Supabase project. The script starts the Next.js app on an isolated local port wi
 
 `npm run verify` includes the no-LLM guard, core mutation smoke, and this web smoke script before the production build.
 
-`npm audit --audit-level=high` should pass on the current Next / Expo / React stack. Record fresh dependency-audit evidence in the active validation report for each hardening run.
+`npm audit --audit-level=high` should pass on the current Next / Expo / React stack. Capture fresh dependency-audit evidence for each hardening run.
 
 ## Final validation gates
 
-The implementation contract requires independent-context adversarial convergence loops and `/criticality-loop` convergence 2 before the goal can be marked complete. Do not reuse stale loop reports; create fresh validation evidence for the current code, current database state, and current browser screenshots.
+The implementation contract requires independent-context adversarial convergence loops and `/criticality-loop` convergence 2 before the goal can be marked complete. Do not reuse stale loop reports; generate fresh validation evidence for the current code, current database state, and current browser screenshots on each run. Run reports and screenshots are transient artifacts — keep them out of version control.

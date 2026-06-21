@@ -62,8 +62,14 @@ function tokenEncryptionSecret(): string {
   return globalThis.__sayableTokenEncryptionSecret;
 }
 
+let derivedTokenKey: Buffer | undefined;
 function tokenEncryptionKey(): Buffer {
-  return crypto.createHash("sha256").update(tokenEncryptionSecret()).digest();
+  // The secret is process-stable (env read once, or cached on globalThis), so the
+  // derived 32-byte key is too — derive it once instead of re-hashing per call.
+  if (!derivedTokenKey) {
+    derivedTokenKey = crypto.createHash("sha256").update(tokenEncryptionSecret()).digest();
+  }
+  return derivedTokenKey;
 }
 
 export function encryptToken(token: string): string {
@@ -668,11 +674,16 @@ export async function mutateStore<T>(mutator: (store: StoreFile) => T): Promise<
     const lockOwner = await acquireSupabaseStoreLock();
     try {
       const store = await readStore();
-      const before = checkChangeSignatures(store);
+      // checkChangeSignatures is O(checks x responses) + JSON.stringify; its only
+      // consumer (notifyChangedChecks) no-ops on the file backend, so only pay for
+      // it when realtime change-notification is actually used (Supabase backend).
+      const before = isSupabaseStoreEnabled() ? checkChangeSignatures(store) : null;
       const result = mutator(store);
       pruneAppendOnlyTables(store);
       await writeStore(store, lockOwner);
-      notifyChangedChecks(before, store);
+      if (before) {
+        notifyChangedChecks(before, store);
+      }
       return result;
     } finally {
       await releaseSupabaseStoreLock(lockOwner);

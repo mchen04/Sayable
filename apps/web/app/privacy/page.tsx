@@ -2,10 +2,12 @@ import Link from "next/link";
 
 export default function PrivacyPage() {
   return (
-    <main className="page-shell section-band stack">
-      <span className="pill">Privacy</span>
-      <h1 className="compact-title">Privacy Policy</h1>
-      <p>
+    <main className="page-shell section-band stack" style={{ paddingTop: "clamp(20px,3vw,40px)" }}>
+      <div className="eyebrow">Your data ✦ privacy</div>
+      <h1 className="compact-title">
+        Privacy <span className="serif serif-lime">Policy</span>
+      </h1>
+      <p className="muted" style={{ fontSize: "1.12rem", maxWidth: "60ch" }}>
         Sayable collects the minimum data needed to create a Comfort Check, collect no-login guest responses, calculate
         privacy-safe aggregate results, and help hosts share final group messages.
       </p>

@@ -84,13 +84,15 @@ export default function BillingReturnClient({
   }, [returnStatus, router, sessionId]);
 
   return (
-    <main className="page-shell narrow">
-      <section className="tool-panel">
-        <span className="pill">
-          <Crown size={15} aria-hidden />
-          Premium Check
-        </span>
-        <h1>Checkout Return</h1>
+    <main className="page-shell section-band stack" style={{ paddingTop: "clamp(20px,3vw,40px)", maxWidth: 640 }}>
+      <span className="pill">
+        <Crown size={15} aria-hidden />
+        Premium Check
+      </span>
+      <h1 className="compact-title">
+        Checkout <span className="serif serif-lime">return</span>
+      </h1>
+      <section className="tool-panel stack">
         {message ? <p className="muted">{message}</p> : null}
         {error ? (
           <div className="error-note" role="alert">

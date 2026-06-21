@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-import { postAnalytics } from "./client-utils";
+import { postAnalytics } from "./client-io";
 
 function analyticsRoute(pathname: string): string {
   if (pathname.startsWith("/c/")) {
@@ -22,9 +22,17 @@ function analyticsRoute(pathname: string): string {
 
 export default function WebAnalytics() {
   const pathname = usePathname();
+  const lastSentRoute = useRef<string | null>(null);
 
   useEffect(() => {
-    void postAnalytics("web_opened", { route: analyticsRoute(pathname) });
+    const route = analyticsRoute(pathname);
+    // Skip duplicate beacons (e.g. back/forward to the same logical route, or
+    // re-renders) so each pageview is a single write, not one per re-render.
+    if (lastSentRoute.current === route) {
+      return;
+    }
+    lastSentRoute.current = route;
+    void postAnalytics("web_opened", { route });
   }, [pathname]);
 
   return null;

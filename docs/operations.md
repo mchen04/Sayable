@@ -79,3 +79,33 @@ where created_at > now() - interval '24 hours'
 group by route, reason
 order by latest desc;
 ```
+
+## Production scalability follow-ups (recommended)
+
+These are pre-existing MVP architecture items surfaced by hardening review. They only
+bite under `SAYABLE_STORE_BACKEND=supabase` (the file backend used for local smoke is
+unaffected) and are deliberately deferred — see the `docs/security-privacy.md` note that
+hot paths should move to row-level transactional operations.
+
+- **Whole-store reads on hot paths.** `readSupabaseStore` reads all rows of all 7 tables
+  per request; every token lookup is an in-memory `.find`, so the token-hash indexes are
+  never used. Add row-level filtered queries (`from('comfort_checks').eq('host_token_hash', h)`
+  + the check's responses by `check_id`) for `getPublicCheck/getHostCheck/getOwnerCheck/
+  getSnapshot/getPreviewByToken`; keep the whole-store read only for the admin snapshot.
+- **Whole-store rewrite per mutation.** Every write (including each analytics/audit/abuse
+  row and the per-pageview `web_opened` beacon) routes through `replace_sayable_runtime_store`,
+  which DELETEs + re-INSERTs all tables under one global advisory lock. Move mutations to
+  row-level inserts/updates and append-only logging to a dedicated row insert.
+- **Global write lock.** `SUPABASE_STORE_LOCK_KEY` is a single constant, serializing all
+  writes app-wide. Once mutations are row-level, drop it (rely on Postgres row locks) or
+  scope it per check (`sayable:check:${checkId}`).
+- **Redundant indexes.** `comfort_checks_guest/host/result_token_idx` and `responses_token_idx`
+  duplicate the UNIQUE-constraint backing indexes; drop them in a new migration
+  (`drop index if exists ...`) to cut write-time index maintenance.
+
+### Minor UI follow-ups (LOW)
+
+- Server-seed `initialData` for the host **review** token route (`/checks/[hostToken]/review`),
+  mirroring the `/h/[hostToken]` results seed, to remove its first-paint loading flash. The
+  auth-gated `/dashboard/checks/[checkId]/review` variant should keep client fetch.
+
