@@ -7,11 +7,8 @@ export default function SupportPage() {
         Contact <span className="serif serif-lime">Sayable</span>
       </h1>
       <p className="muted" style={{ fontSize: "1.12rem", maxWidth: "60ch" }}>
-        For help with a Comfort Check, account deletion, payment smoke testing, abuse reports, or data questions, contact{" "}
-        <a href={`mailto:${email}`} style={{ color: "var(--lime)", fontWeight: 700 }}>
-          {email}
-        </a>
-        .
+        For help with a Comfort Check, account deletion, payment smoke testing, abuse reports, or data questions, email{" "}
+        <span style={{ color: "var(--lime)", fontWeight: 700 }}>{email}</span> — or tap the button below.
       </p>
       <a className="btn btn-primary" href={`mailto:${email}`} style={{ alignSelf: "flex-start" }}>
         Email {email}
