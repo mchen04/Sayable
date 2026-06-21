@@ -48,3 +48,10 @@ shared/token link) rendered as dimmed, non-interactive labels.
   (never via `setTimeout(0)`, which React 19 Strict Mode cancels in dev).
 - `next.config.mjs` sets `allowedDevOrigins: ["127.0.0.1", "localhost"]` so dev HMR works from
   either loopback origin.
+- The guest answer form stays low-pressure, not survey-like: the optional constraints render as
+  compact wrap toggle-chips (`.constraint-chip`) and the private note sits behind a tap-to-reveal
+  disclosure (`.note-toggle`). A closed/expired check shows its locked-state banner *inside* the
+  phone-frame form (not only the desktop intro column) so phones never hit a silent dead-end.
+- The OG / link-preview card (`/api/og/check/*`) uses the dark-editorial palette (dark page +
+  dark panel + the per-check accent + cream text) so the share image matches every in-app surface;
+  it carries only the title + public-safe verdict line (no names, counts, budgets, or notes).
