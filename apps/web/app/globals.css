@@ -1333,6 +1333,18 @@ button.dashboard-card:hover {
   border: 1.5px solid rgba(221, 115, 85, 0.4);
 }
 
+/* On cream surfaces the light peach foreground vanishes (light-on-light), so remap
+   to the dark-clay tone pair (AA on cream) — mirrors the .status-note cream override.
+   Without this, e.g. the create "Free hosts can keep 3 active…" notice is unreadable. */
+.card .error-note,
+.form-panel .error-note,
+.result-panel .error-note,
+.snapshot .error-note {
+  color: var(--tone-clay-fg);
+  background: var(--tone-clay-bg);
+  border-color: rgba(138, 62, 42, 0.32);
+}
+
 .success-note {
   color: var(--bg);
   background: var(--lime);
