@@ -13,6 +13,9 @@ export default function SupportPage() {
         </a>
         .
       </p>
+      <a className="btn btn-primary" href={`mailto:${email}`} style={{ alignSelf: "flex-start" }}>
+        Email {email}
+      </a>
       <div className="tool-panel stack">
         <h2>Useful details</h2>
         <p className="muted">

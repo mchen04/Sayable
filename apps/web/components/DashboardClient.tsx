@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { authHeaders, getHostSession } from "./client-utils";
+import { authHeaders, getExistingHostSession, getHostSession } from "./client-utils";
 
 interface DashboardCheck {
   id: string;
@@ -41,25 +41,58 @@ export default function DashboardClient() {
   const [checks, setChecks] = useState<DashboardCheck[]>([]);
   const [ownerUserId, setOwnerUserId] = useState("");
   const [error, setError] = useState("");
+  // Distinguish "not signed in yet" (a calm landing state) from a real load
+  // failure, so visiting /dashboard signed-out never shows a scary network error
+  // or silently bounces to an OAuth page.
+  const [status, setStatus] = useState<"loading" | "signedOut" | "ready">("loading");
+  const [signingIn, setSigningIn] = useState(false);
+
+  async function loadChecks() {
+    setError("");
+    const headers = await authHeaders();
+    const response = await fetch("/api/dashboard", { headers });
+    const payload = (await response.json().catch(() => ({}))) as {
+      checks?: DashboardCheck[];
+      error?: string;
+    };
+    if (!response.ok) {
+      setError(payload.error || "Could not load your saved checks. Sign in again from a check you created.");
+      return;
+    }
+    setChecks(payload.checks || []);
+  }
 
   useEffect(() => {
-    getHostSession()
+    // Passive check — getExistingHostSession never triggers an OAuth redirect, so
+    // a signed-out visitor lands on a calm sign-in prompt instead of flashing the
+    // shell and bouncing (or erroring when no auth method is configured).
+    getExistingHostSession()
       .then(async (session) => {
-        setOwnerUserId(session.ownerUserId);
-        const headers = await authHeaders();
-        const response = await fetch("/api/dashboard", { headers });
-        const payload = (await response.json().catch(() => ({}))) as {
-          checks?: DashboardCheck[];
-          error?: string;
-        };
-        if (!response.ok) {
-          setError(payload.error || "Could not load your saved checks. Sign in again from a check you created.");
+        if (!session) {
+          setStatus("signedOut");
           return;
         }
-        setChecks(payload.checks || []);
+        setOwnerUserId(session.ownerUserId);
+        setStatus("ready");
+        await loadChecks();
       })
-      .catch(() => setError("Network error loading your dashboard. Check your connection and try again."));
+      .catch(() => setStatus("signedOut"));
   }, []);
+
+  async function signIn() {
+    setSigningIn(true);
+    setError("");
+    try {
+      const session = await getHostSession();
+      setOwnerUserId(session.ownerUserId);
+      setStatus("ready");
+      await loadChecks();
+    } catch {
+      setError("Sign-in isn't available right now. Create a check, then choose Continue with Google to save it here.");
+    } finally {
+      setSigningIn(false);
+    }
+  }
 
   return (
     <main className="page-shell section-band rise">
@@ -87,7 +120,11 @@ export default function DashboardClient() {
             Your <span className="serif serif-lime">checks</span>
           </h1>
           <p className="muted" style={{ fontSize: "1.12rem", margin: "14px 0 0", maxWidth: "52ch" }}>
-            Everything you&apos;ve floated to the group. Session <code>{maskedOwnerId(ownerUserId)}</code>.
+            {status === "ready" ? (
+              <>Everything you&apos;ve floated to the group. Session <code>{maskedOwnerId(ownerUserId)}</code>.</>
+            ) : (
+              <>Everything you&apos;ve floated to the group, saved in one place.</>
+            )}
           </p>
         </div>
         <Link className="btn btn-primary" href="/create">
@@ -101,6 +138,25 @@ export default function DashboardClient() {
         </div>
       ) : null}
 
+      {status === "signedOut" ? (
+        <div className="tool-panel stack" style={{ marginTop: 28 }}>
+          <h2 style={{ fontSize: "1.4rem", margin: 0 }}>Sign in to see your saved checks</h2>
+          <p className="muted" style={{ maxWidth: "52ch" }}>
+            Your dashboard keeps every check you&apos;ve saved. Make a check first, then choose Continue with Google to
+            keep it here — no check is ever lost behind a login.
+          </p>
+          <div className="button-row">
+            <button className="btn btn-secondary" type="button" onClick={signIn} disabled={signingIn}>
+              {signingIn ? "Opening…" : "Continue with Google"}
+            </button>
+            <Link className="btn btn-ghost" href="/create">
+              Make a check first
+            </Link>
+          </div>
+        </div>
+      ) : null}
+
+      {status === "ready" ? (
       <div className="dashboard-grid" style={{ marginTop: 28 }}>
         {checks.length ? (
           checks.map((check) => (
@@ -148,9 +204,10 @@ export default function DashboardClient() {
             </article>
           ))
         ) : (
-          <div className="status-note">No saved checks yet. Create a check, then choose Continue with Google.</div>
+          <div className="status-note">No saved checks yet — make your first one and it&apos;ll land here.</div>
         )}
       </div>
+      ) : null}
 
       <div className="tool-panel" style={{ marginTop: 28, display: "flex", gap: 11, alignItems: "flex-start" }}>
         <span style={{ color: "var(--lime)", fontSize: "1.1rem", lineHeight: 1 }}>✦</span>

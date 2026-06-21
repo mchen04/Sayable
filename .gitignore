@@ -20,3 +20,8 @@ supabase/.branches/
 
 # Transient hardening/validation run artifacts (never commit — see docs/testing.md)
 validation/
+.vercel
+
+# Ship-it verification helpers — local prod-Supabase test tooling, never commit
+wipe-cloud-data.mjs
+scripts/ship-it-seed.mjs

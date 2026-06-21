@@ -597,7 +597,7 @@ export default function HostReviewClient({ endpoints }: HostReviewClientProps) {
             </div>
           </div>
 
-          <div className="tool-panel stack">
+          <div className="tool-panel stack review-share">
             <h2 style={{ fontSize: "1.3rem", margin: 0 }}>Share</h2>
             <p className="muted">Host links stay private. Share this guest link anywhere.</p>
             <div className="button-row">

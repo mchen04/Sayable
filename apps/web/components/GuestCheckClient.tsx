@@ -237,8 +237,9 @@ export default function GuestCheckClient({
   return (
     <main className="page-shell section-band rise">
       <div style={{ display: "flex", flexWrap: "wrap", gap: 48, alignItems: "flex-start", justifyContent: "center" }}>
-        {/* intro column */}
-        <section style={{ flex: "1 1 320px", maxWidth: 440, minWidth: 280, paddingTop: 8 }}>
+        {/* intro column — desktop chrome only; on phones the self-contained form leads
+            so the guest answers immediately instead of scrolling past an explainer */}
+        <section className="guest-intro" style={{ flex: "1 1 320px", maxWidth: 440, minWidth: 280, paddingTop: 8 }}>
           <div className="eyebrow">✦ private guest link</div>
           <h1 style={{ fontFamily: "var(--type-display)", fontWeight: 800, fontSize: "clamp(2.2rem,4.5vw,3.4rem)", lineHeight: 0.95, letterSpacing: "-0.03em", margin: "16px 0 0" }}>
             This is what <span className="serif serif-lime">people</span> tap.

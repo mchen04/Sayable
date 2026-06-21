@@ -593,7 +593,7 @@ details[open] > summary::after {
   border-color: rgba(221, 115, 85, 0.45);
   font-size: 0.92rem;
   padding: 0 14px;
-  min-height: 40px;
+  min-height: 44px;
 }
 
 .btn-ghost-danger:hover {
@@ -1422,6 +1422,28 @@ button.dashboard-card:hover {
 
   .hero {
     align-items: start;
+  }
+
+  /* Guest answer page: on phones/tablet-portrait the explainer column otherwise
+     stacks above the form, forcing the guest to scroll ~320px just to reach the
+     first question. The form is self-contained (title, privacy chip, footer), so
+     lead with it and drop the desktop-only intro. */
+  .guest-intro {
+    display: none;
+  }
+
+  /* Host review: right after creating, the host's primary intent is to SHARE the
+     guest link. On phones the share/save column otherwise stacks below the
+     OPTIONAL fine-tuning, pushing Copy/Share ~430px under the fold. Lead with the
+     share column; fine-tuning stays available just below. */
+  .review-grid > aside {
+    order: -1;
+  }
+
+  /* Within the share column, the primary Share/Copy actions lead; the chat
+     preview and Save drop just below so the host can share at the fold. */
+  .review-share {
+    order: -1;
   }
 }
 
